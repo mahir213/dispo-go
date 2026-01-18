@@ -1,0 +1,117 @@
+// This is your Prisma schema file for Dispo-Go
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                        String    @id
+  name                      String
+  email                     String
+  emailVerified             Boolean   @default(false)
+  image                     String?
+  emailNotificationsEnabled Boolean   @default(true)
+  notificationDaysBefore    Int       @default(30)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @default(now()) @updatedAt
+  sessions                  Session[]
+  accounts                  Account[]
+  vehicles                  Vehicle[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@map("verification")
+}
+
+enum VehicleType {
+  KAMION
+  PRIKOLICA
+}
+
+model Vehicle {
+  id                    String        @id @default(cuid())
+  name                  String
+  registrationNumber    String        @unique
+  vehicleType           VehicleType
+  sixMonthInspectionDate DateTime?
+  registrationExpiryDate DateTime?
+  ppAparatExpiryDate    DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fireExtinguishers     FireExtinguisher[]
+
+  @@map("vehicle")
+}
+
+enum FireExtinguisherType {
+  PP_APARAT_6KG
+  PP_APARAT_12KG
+  CO2_APARAT
+  PJENA_APARAT
+}
+
+model FireExtinguisher {
+  id                    String                 @id @default(cuid())
+  serialNumber          String                 @unique
+  type                  FireExtinguisherType
+  manufacturerDate      DateTime
+  lastInspectionDate    DateTime
+  nextInspectionDate    DateTime
+  vehicleId             String?
+  vehicle               Vehicle?               @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@map("fire_extinguisher")
+}
