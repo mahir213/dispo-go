@@ -2,11 +2,13 @@
 
 import { formatDistanceToNow, format } from "date-fns";
 import { hr } from "date-fns/locale";
-import { TruckIcon, CalendarIcon, PlusIcon, AlertCircle, ChevronRight } from "lucide-react";
+import { TruckIcon, CalendarIcon, PlusIcon, AlertCircle, ChevronRight, SearchIcon } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddVehicleDialog } from "@/components/add-vehicle-dialog";
+import { Input } from "@/components/ui/input";
 import { useEffect, useState } from "react";
 
 type Vehicle = {
@@ -24,6 +26,7 @@ type Vehicle = {
 export function VehiclesList() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     fetch("/api/vehicles")
@@ -38,6 +41,15 @@ export function VehiclesList() {
       });
   }, []);
 
+  const filteredVehicles = vehicles.filter((vehicle) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      vehicle.name.toLowerCase().includes(query) ||
+      vehicle.registrationNumber.toLowerCase().includes(query) ||
+      vehicle.vehicleType.toLowerCase().includes(query)
+    );
+  });
+
   if (loading) {
     return <VehiclesLoading />;
   }
@@ -48,6 +60,20 @@ export function VehiclesList() {
 
   return (
     <div className="flex flex-col w-full max-w-7xl mx-auto">
+      {/* Search Bar */}
+      <div className="px-8 py-4 border-b">
+        <div className="relative max-w-md">
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            type="text"
+            placeholder="Pretraži vozila..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
       {/* Table Header */}
       <div className="flex items-center gap-6 px-8 py-4 bg-muted/50 border-y text-sm font-medium text-muted-foreground">
         <div className="flex-1 min-w-0">Vozilo</div>
@@ -59,9 +85,16 @@ export function VehiclesList() {
       
       {/* Table Body */}
       <div className="divide-y">
-        {vehicles.map((vehicle) => (
-          <VehicleRow key={vehicle.id} data={vehicle} />
-        ))}
+        {filteredVehicles.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <SearchIcon className="h-12 w-12 mx-auto mb-2 opacity-20" />
+            <p>Nema rezultata pretrage</p>
+          </div>
+        ) : (
+          filteredVehicles.map((vehicle) => (
+            <VehicleRow key={vehicle.id} data={vehicle} />
+          ))
+        )}
       </div>
     </div>
   );
@@ -95,7 +128,11 @@ function VehicleRow({ data }: { data: Vehicle }) {
         {/* Vozilo */}
         <div className="flex-1 min-w-0 flex items-center gap-3">
           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <TruckIcon className="h-5 w-5 text-primary" />
+            {data.vehicleType === "PRIKOLICA" ? (
+              <Image src="/semi-trailer.png" alt="Prikolica" width={20} height={20} className="h-5 w-5" />
+            ) : (
+              <TruckIcon className="h-5 w-5 text-primary" />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="font-medium truncate">{data.name}</div>

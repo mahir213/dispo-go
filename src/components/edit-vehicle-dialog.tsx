@@ -50,9 +50,9 @@ interface Vehicle {
   name: string;
   registrationNumber: string;
   vehicleType: string;
-  sixMonthInspectionDate: Date | null;
-  registrationExpiryDate: Date | null;
-  ppAparatExpiryDate: Date | null;
+  sixMonthInspectionDate: string | null;
+  registrationExpiryDate: string | null;
+  ppAparatExpiryDate: string | null;
 }
 
 interface EditVehicleDialogProps {

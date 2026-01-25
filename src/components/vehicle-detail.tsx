@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { 
@@ -10,14 +10,21 @@ import {
   PencilIcon, 
   TrashIcon,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  PlusIcon,
+  WrenchIcon,
+  XIcon
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EditVehicleDialog } from "@/components/edit-vehicle-dialog";
 import { DeleteVehicleDialog } from "@/components/delete-vehicle-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 interface Vehicle {
   id: string;
@@ -31,6 +38,13 @@ interface Vehicle {
   updatedAt: string;
 }
 
+interface MaintenanceRecord {
+  id: string;
+  description: string;
+  date: string;
+  createdAt: string;
+}
+
 interface VehicleDetailClientProps {
   vehicle: Vehicle;
 }
@@ -38,7 +52,73 @@ interface VehicleDetailClientProps {
 export function VehicleDetailClient({ vehicle }: VehicleDetailClientProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
+  const [isAddingRecord, setIsAddingRecord] = useState(false);
+  const [newRecord, setNewRecord] = useState({ description: "", date: "" });
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const router = useRouter();
+
+  useEffect(() => {
+    fetchMaintenanceRecords();
+  }, [vehicle.id]);
+
+  const fetchMaintenanceRecords = async () => {
+    try {
+      const response = await fetch(`/api/vehicles/${vehicle.id}/maintenance`);
+      if (response.ok) {
+        const data = await response.json();
+        setMaintenanceRecords(data);
+      }
+    } catch (error) {
+      console.error("Error fetching maintenance records:", error);
+    } finally {
+      setIsLoadingRecords(false);
+    }
+  };
+
+  const handleAddRecord = async () => {
+    if (!newRecord.description || !newRecord.date) {
+      toast.error("Molimo unesite opis i datum");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/vehicles/${vehicle.id}/maintenance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newRecord),
+      });
+
+      if (response.ok) {
+        toast.success("Zapis uspješno dodat");
+        setNewRecord({ description: "", date: "" });
+        setIsAddingRecord(false);
+        fetchMaintenanceRecords();
+      } else {
+        toast.error("Greška pri dodavanju zapisa");
+      }
+    } catch (error) {
+      toast.error("Greška pri dodavanju zapisa");
+    }
+  };
+
+  const handleDeleteRecord = async (recordId: string) => {
+    try {
+      const response = await fetch(
+        `/api/vehicles/${vehicle.id}/maintenance?recordId=${recordId}`,
+        { method: "DELETE" }
+      );
+
+      if (response.ok) {
+        toast.success("Zapis uspješno obrisan");
+        fetchMaintenanceRecords();
+      } else {
+        toast.error("Greška pri brisanju zapisa");
+      }
+    } catch (error) {
+      toast.error("Greška pri brisanju zapisa");
+    }
+  };
 
   const isExpiringSoon = (date: string | null) => {
     if (!date) return false;
@@ -160,8 +240,8 @@ export function VehicleDetailClient({ vehicle }: VehicleDetailClientProps) {
               {/* Šestomjesečni pregled */}
               <div className="flex items-center justify-between p-4 rounded-lg border">
                 <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
-                    <CalendarIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  <div className="h-12 w-12 rounded-lg bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
+                    <CalendarIcon className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                   </div>
                   <div>
                     <h3 className="font-medium">Šestomjesečni pregled</h3>
@@ -180,8 +260,8 @@ export function VehicleDetailClient({ vehicle }: VehicleDetailClientProps) {
               {/* Registracija */}
               <div className="flex items-center justify-between p-4 rounded-lg border">
                 <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-lg bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
-                    <CalendarIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                  <div className="h-12 w-12 rounded-lg bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
+                    <Image src="/license-plate.png" alt="Registracija" width={32} height={32} className="h-8 w-8" />
                   </div>
                   <div>
                     <h3 className="font-medium">Registracija</h3>
@@ -200,8 +280,8 @@ export function VehicleDetailClient({ vehicle }: VehicleDetailClientProps) {
               {/* PP Aparat */}
               <div className="flex items-center justify-between p-4 rounded-lg border">
                 <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-lg bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
-                    <CalendarIcon className="h-6 w-6 text-red-600 dark:text-red-400" />
+                  <div className="h-12 w-12 rounded-lg bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
+                    <Image src="/fire-extinguisher.png" alt="PP Aparat" width={24} height={24} className="h-6 w-6" />
                   </div>
                   <div>
                     <h3 className="font-medium">PP Aparat</h3>
@@ -243,6 +323,107 @@ export function VehicleDetailClient({ vehicle }: VehicleDetailClientProps) {
                   </p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Maintenance Records Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Servisni zapisi</CardTitle>
+                  <CardDescription>Evidencija obavljenih radova</CardDescription>
+                </div>
+                {!isAddingRecord && (
+                  <Button onClick={() => setIsAddingRecord(true)} size="sm">
+                    <PlusIcon className="h-4 w-4 mr-2" />
+                    Dodaj zapis
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isAddingRecord && (
+                <div className="p-4 border rounded-lg space-y-4 bg-muted/50">
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Opis rada</Label>
+                    <Input
+                      id="description"
+                      placeholder="npr. Zamjena ulja i filtera"
+                      value={newRecord.description}
+                      onChange={(e) =>
+                        setNewRecord({ ...newRecord, description: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Datum</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={newRecord.date}
+                      onChange={(e) =>
+                        setNewRecord({ ...newRecord, date: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={handleAddRecord} size="sm">
+                      Sačuvaj
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsAddingRecord(false);
+                        setNewRecord({ description: "", date: "" });
+                      }}
+                    >
+                      Otkaži
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {isLoadingRecords ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Učitavanje...
+                </div>
+              ) : maintenanceRecords.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <WrenchIcon className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                  <p>Nema evidencije servisnih radova</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {maintenanceRecords.map((record) => (
+                    <div
+                      key={record.id}
+                      className="flex items-start justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex gap-4 flex-1">
+                        <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center flex-shrink-0">
+                          <WrenchIcon className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium">{record.description}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {format(new Date(record.date), "dd.MM.yyyy")}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteRecord(record.id)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <XIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

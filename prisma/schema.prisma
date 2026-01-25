@@ -90,8 +90,21 @@ model Vehicle {
   userId                String
   user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   fireExtinguishers     FireExtinguisher[]
+  maintenanceRecords    MaintenanceRecord[]
 
   @@map("vehicle")
+}
+
+model MaintenanceRecord {
+  id          String   @id @default(cuid())
+  description String
+  date        DateTime
+  vehicleId   String
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("maintenance_record")
 }
 
 enum FireExtinguisherType {
