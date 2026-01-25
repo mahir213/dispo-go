@@ -9,7 +9,7 @@ export default async function DashboardLayout({ children }: PropsWithChildren) {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <main className="flex-1 w-full overflow-auto">
+      <main className="flex-1 w-full overflow-auto pl-0 md:pl-[var(--sidebar-width)] transition-padding">
         {children}
       </main>
     </SidebarProvider>
