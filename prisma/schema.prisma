@@ -22,6 +22,7 @@ model User {
   sessions                  Session[]
   accounts                  Account[]
   vehicles                  Vehicle[]
+  drivers                   Driver[]
 
   @@unique([email])
   @@map("user")
@@ -127,4 +128,39 @@ model FireExtinguisher {
   updatedAt             DateTime               @updatedAt
 
   @@map("fire_extinguisher")
+}
+
+enum NoteType {
+  POSITIVE
+  NEGATIVE
+}
+
+model Driver {
+  id                     String       @id @default(cuid())
+  name                   String
+  phoneNumber            String
+  email                  String?
+  licenseNumber          String       @unique
+  licenseExpiryDate      DateTime?
+  medicalExamExpiryDate  DateTime?
+  driverCardExpiryDate   DateTime?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  userId                 String
+  user                   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes                  DriverNote[]
+
+  @@map("driver")
+}
+
+model DriverNote {
+  id        String   @id @default(cuid())
+  content   String
+  noteType  NoteType
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("driver_note")
 }

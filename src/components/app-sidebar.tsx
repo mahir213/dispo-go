@@ -5,6 +5,7 @@ import {
     LogOutIcon,
     SettingsIcon,
     BellIcon,
+    UserIcon,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
@@ -33,6 +34,11 @@ const menuItems = [
                 title: "Vozila",
                 icon: TruckIcon,
                 url: "/vozila",
+            },
+            {
+                title: "Vozači",
+                icon: UserIcon,
+                url: "/vozaci",
             },
         ],
     },
