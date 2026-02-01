@@ -6,12 +6,18 @@ import {
     SettingsIcon,
     BellIcon,
     UserIcon,
+    HandshakeIcon,
+    Route,
+    History,
+    CalendarDays,
+    Shield,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import { UserRole } from "@prisma/client";
 import {
     Sidebar,
     SidebarContent,
@@ -26,7 +32,26 @@ import {
 import { NotificationsModal } from "@/components/notifications-modal";
 import { Badge } from "@/components/ui/badge";
 
-const menuItems = [
+type Permission = 
+    | "view_vehicles"
+    | "view_drivers"
+    | "view_tours"
+    | "view_calendar"
+    | "view_settings";
+
+interface MenuItem {
+    title: string;
+    icon: React.ComponentType<{ className?: string }>;
+    url: string;
+    permission: Permission;
+}
+
+interface MenuGroup {
+    title: string;
+    items: MenuItem[];
+}
+
+const allMenuItems: MenuGroup[] = [
     {
         title: "Vozila",
         items: [
@@ -34,32 +59,93 @@ const menuItems = [
                 title: "Vozila",
                 icon: TruckIcon,
                 url: "/vozila",
+                permission: "view_vehicles",
             },
             {
                 title: "Vozači",
                 icon: UserIcon,
                 url: "/vozaci",
+                permission: "view_drivers",
             },
         ],
     },
     {
-        title: "Postavke",
+        title: "Ture",
         items: [
+            {
+                title: "Ugovoreno",
+                icon: HandshakeIcon,
+                url: "/ugovoreno",
+                permission: "view_tours",
+            },
+            {
+                title: "Aktivne ture",
+                icon: Route,
+                url: "/aktivne",
+                permission: "view_tours",
+            },
+            {
+                title: "Historija",
+                icon: History,
+                url: "/historija",
+                permission: "view_tours",
+            },
+        ],
+    },
+    {
+        title: "Ostalo",
+        items: [
+            {
+                title: "Događaji",
+                icon: CalendarDays,
+                url: "/dogadjaji",
+                permission: "view_calendar",
+            },
             {
                 title: "Postavke",
                 icon: SettingsIcon,
                 url: "/postavke",
+                permission: "view_settings",
             },
         ],
     },
 ];
 
-export const AppSidebar = () => {
+// Role permissions
+const rolePermissions: Record<UserRole, Permission[]> = {
+    DIREKTOR: ["view_vehicles", "view_drivers", "view_tours", "view_calendar", "view_settings"],
+    DISPONENT: ["view_vehicles", "view_drivers", "view_tours", "view_calendar", "view_settings"],
+    KNJIGOVODJA: ["view_vehicles", "view_drivers", "view_tours", "view_calendar", "view_settings"],
+    SERVISER: ["view_vehicles", "view_settings"],
+};
+
+const roleLabels: Record<UserRole, string> = {
+    DIREKTOR: "Direktor",
+    DISPONENT: "Disponent",
+    KNJIGOVODJA: "Knjigovođa",
+    SERVISER: "Serviser",
+};
+
+interface AppSidebarProps {
+    userRole?: UserRole;
+}
+
+export const AppSidebar = ({ userRole = "DISPONENT" }: AppSidebarProps) => {
     const router = useRouter();
     const pathname = usePathname();
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [notificationCount, setNotificationCount] = useState(0);
     const [hasExpired, setHasExpired] = useState(false);
+
+    const userPermissions = rolePermissions[userRole];
+
+    // Filter menu items based on permissions
+    const menuItems = allMenuItems
+        .map(group => ({
+            ...group,
+            items: group.items.filter(item => userPermissions.includes(item.permission)),
+        }))
+        .filter(group => group.items.length > 0);
 
     useEffect(() => {
         fetchNotificationCount();
@@ -122,6 +208,13 @@ export const AppSidebar = () => {
             </SidebarContent>
             <SidebarFooter>
                 <SidebarMenu>
+                    {/* User Role Badge */}
+                    <SidebarMenuItem>
+                        <div className="flex items-center gap-x-4 h-10 px-4 text-sm text-muted-foreground">
+                            <Shield className="h-4 w-4" />
+                            <span>{roleLabels[userRole]}</span>
+                        </div>
+                    </SidebarMenuItem>
                     <SidebarMenuItem>
                         <SidebarMenuButton 
                         tooltip="Notifikacije"

@@ -14,7 +14,7 @@ const DriverDetailPage = async ({ params }: PageProps) => {
   const driver = await prisma.driver.findUnique({
     where: {
       id,
-      userId: session.user.id,
+      organizationId: session.user.organizationId,
     },
     include: {
       notes: {

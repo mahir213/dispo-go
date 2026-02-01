@@ -1,5 +1,3 @@
-// This is your Prisma schema file for Dispo-Go
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,29 +7,43 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id                        String    @id
-  name                      String
-  email                     String
-  emailVerified             Boolean   @default(false)
-  image                     String?
-  emailNotificationsEnabled Boolean   @default(true)
-  notificationDaysBefore    Int       @default(30)
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @default(now()) @updatedAt
-  sessions                  Session[]
-  accounts                  Account[]
-  vehicles                  Vehicle[]
-  drivers                   Driver[]
+model Organization {
+  id              String           @id @default(cuid())
+  name            String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  users           User[]
+  vehicles        Vehicle[]
+  drivers         Driver[]
+  contractedTours ContractedTour[]
+  calendarEvents  CalendarEvent[]
 
-  @@unique([email])
+  @@map("organization")
+}
+
+model User {
+  id                        String        @id
+  name                      String
+  email                     String        @unique
+  emailVerified             Boolean       @default(false)
+  image                     String?
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @default(now()) @updatedAt
+  emailNotificationsEnabled Boolean       @default(true)
+  notificationDaysBefore    Int           @default(30)
+  role                      UserRole      @default(DISPONENT)
+  organizationId            String?
+  organization              Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  accounts                  Account[]
+  sessions                  Session[]
+
   @@map("user")
 }
 
 model Session {
   id        String   @id
   expiresAt DateTime
-  token     String
+  token     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   ipAddress String?
@@ -39,7 +51,6 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([token])
   @@map("session")
 }
 
@@ -48,7 +59,6 @@ model Account {
   accountId             String
   providerId            String
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -58,6 +68,7 @@ model Account {
   password              String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("account")
 }
@@ -73,26 +84,24 @@ model Verification {
   @@map("verification")
 }
 
-enum VehicleType {
-  KAMION
-  PRIKOLICA
-}
-
 model Vehicle {
-  id                    String        @id @default(cuid())
-  name                  String
-  registrationNumber    String        @unique
-  vehicleType           VehicleType
-  sixMonthInspectionDate DateTime?
+  id                     String              @id @default(cuid())
+  name                   String
+  registrationNumber     String
+  vehicleType            VehicleType
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  organizationId         String
+  ppAparatExpiryDate     DateTime?
   registrationExpiryDate DateTime?
-  ppAparatExpiryDate    DateTime?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-  userId                String
-  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fireExtinguishers     FireExtinguisher[]
-  maintenanceRecords    MaintenanceRecord[]
+  sixMonthInspectionDate DateTime?
+  fireExtinguishers      FireExtinguisher[]
+  maintenanceRecords     MaintenanceRecord[]
+  organization           Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  truckTours             ContractedTour[]    @relation("TruckTours")
+  trailerTours           ContractedTour[]    @relation("TrailerTours")
 
+  @@unique([registrationNumber, organizationId])
   @@map("vehicle")
 }
 
@@ -101,11 +110,126 @@ model MaintenanceRecord {
   description String
   date        DateTime
   vehicleId   String
-  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
   @@map("maintenance_record")
+}
+
+model FireExtinguisher {
+  id                 String               @id @default(cuid())
+  serialNumber       String               @unique
+  type               FireExtinguisherType
+  manufacturerDate   DateTime
+  lastInspectionDate DateTime
+  nextInspectionDate DateTime
+  vehicleId          String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  vehicle            Vehicle?             @relation(fields: [vehicleId], references: [id])
+
+  @@map("fire_extinguisher")
+}
+
+model Driver {
+  id                    String           @id @default(cuid())
+  name                  String
+  phoneNumber           String
+  email                 String?
+  licenseNumber         String
+  licenseExpiryDate     DateTime?
+  medicalExamExpiryDate DateTime?
+  driverCardExpiryDate  DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  organizationId        String
+  organization          Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  notes                 DriverNote[]
+  contractedTours       ContractedTour[]
+
+  @@unique([licenseNumber, organizationId])
+  @@map("driver")
+}
+
+model DriverNote {
+  id        String   @id @default(cuid())
+  content   String
+  noteType  NoteType
+  driverId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@map("driver_note")
+}
+
+model ContractedTour {
+  id              String          @id @default(cuid())
+  tourType        TourType
+  loadingLocation String
+  loadingDate     DateTime?
+  exportCustoms   String?
+  importCustoms   String?
+  price           Decimal         @db.Decimal(10, 2)
+  company         String
+  isADR           Boolean         @default(false)
+  isCompleted     Boolean         @default(false)
+  isInvoiced      Boolean         @default(false)
+  completedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  organizationId  String
+  driverId        String?
+  truckId         String?
+  trailerId       String?
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  driver          Driver?         @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  truck           Vehicle?        @relation("TruckTours", fields: [truckId], references: [id], onDelete: SetNull)
+  trailer         Vehicle?        @relation("TrailerTours", fields: [trailerId], references: [id], onDelete: SetNull)
+  unloadingStops  UnloadingStop[]
+
+  @@map("contracted_tour")
+}
+
+model UnloadingStop {
+  id            String         @id @default(cuid())
+  location      String
+  unloadingDate DateTime?
+  tourId        String
+  tour          ContractedTour @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("unloading_stop")
+}
+
+model CalendarEvent {
+  id             String       @id @default(cuid())
+  title          String
+  description    String?
+  date           DateTime
+  eventType      EventType
+  color          String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("calendar_event")
+}
+
+enum EventType {
+  CUSTOM
+  VEHICLE_EXPIRY
+  DRIVER_EXPIRY
+  TOUR_LOADING
+  TOUR_UNLOADING
+}
+
+enum VehicleType {
+  KAMION
+  PRIKOLICA
 }
 
 enum FireExtinguisherType {
@@ -115,52 +239,20 @@ enum FireExtinguisherType {
   PJENA_APARAT
 }
 
-model FireExtinguisher {
-  id                    String                 @id @default(cuid())
-  serialNumber          String                 @unique
-  type                  FireExtinguisherType
-  manufacturerDate      DateTime
-  lastInspectionDate    DateTime
-  nextInspectionDate    DateTime
-  vehicleId             String?
-  vehicle               Vehicle?               @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-
-  @@map("fire_extinguisher")
-}
-
 enum NoteType {
   POSITIVE
   NEGATIVE
 }
 
-model Driver {
-  id                     String       @id @default(cuid())
-  name                   String
-  phoneNumber            String
-  email                  String?
-  licenseNumber          String       @unique
-  licenseExpiryDate      DateTime?
-  medicalExamExpiryDate  DateTime?
-  driverCardExpiryDate   DateTime?
-  createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
-  userId                 String
-  user                   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  notes                  DriverNote[]
-
-  @@map("driver")
+enum TourType {
+  UVOZ
+  IZVOZ
+  MEDJUTURA
 }
 
-model DriverNote {
-  id        String   @id @default(cuid())
-  content   String
-  noteType  NoteType
-  driverId  String
-  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("driver_note")
+enum UserRole {
+  DIREKTOR
+  DISPONENT
+  KNJIGOVODJA
+  SERVISER
 }

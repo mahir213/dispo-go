@@ -14,7 +14,7 @@ const VehicleDetailPage = async ({ params }: PageProps) => {
   const vehicle = await prisma.vehicle.findUnique({
     where: {
       id,
-      userId: session.user.id,
+      organizationId: session.user.organizationId,
     },
   });
 

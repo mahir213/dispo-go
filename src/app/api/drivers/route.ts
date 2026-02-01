@@ -1,8 +1,7 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { z } from "zod";
+import { checkAuth, requirePermission } from "@/lib/api-auth";
 
 const driverSchema = z.object({
   name: z.string().min(1),
@@ -16,13 +15,10 @@ const driverSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "edit_drivers");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const body = await request.json();
     const validated = driverSchema.parse(body);
@@ -42,7 +38,7 @@ export async function POST(request: Request) {
         driverCardExpiryDate: validated.driverCardExpiryDate
           ? new Date(validated.driverCardExpiryDate)
           : null,
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
       include: {
         notes: true,
@@ -75,17 +71,14 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "view_drivers");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const drivers = await prisma.driver.findMany({
       where: {
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
       include: {
         notes: true,

@@ -1,9 +1,8 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { z } from "zod";
 import { VehicleType } from "@prisma/client";
+import { checkAuth, requirePermission } from "@/lib/api-auth";
 
 const vehicleSchema = z.object({
   name: z.string().min(1),
@@ -16,13 +15,10 @@ const vehicleSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "edit_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const body = await request.json();
     const validated = vehicleSchema.parse(body);
@@ -41,7 +37,7 @@ export async function POST(request: Request) {
         ppAparatExpiryDate: validated.ppAparatExpiryDate
           ? new Date(validated.ppAparatExpiryDate)
           : null,
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
     });
 
@@ -71,17 +67,14 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "view_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const vehicles = await prisma.vehicle.findMany({
       where: {
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
       orderBy: {
         createdAt: "desc",

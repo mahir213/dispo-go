@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import db from "@/lib/db";
 import { SettingsForm } from "@/components/settings-form";
 import { TestEmailButton } from "@/components/test-email-button";
+import { UserManagement } from "@/components/user-management";
 
 export default async function SettingsPage() {
   const session = await auth.api.getSession({
@@ -20,6 +21,7 @@ export default async function SettingsPage() {
       id: true,
       name: true,
       email: true,
+      role: true,
       emailNotificationsEnabled: true,
       notificationDaysBefore: true,
     },
@@ -28,6 +30,8 @@ export default async function SettingsPage() {
   if (!user) {
     redirect("/login");
   }
+
+  const isDirektor = user.role === "DIREKTOR";
 
   return (
     <div className="flex-1 overflow-auto">
@@ -41,6 +45,8 @@ export default async function SettingsPage() {
           </div>
 
           <SettingsForm user={user} />
+
+          {isDirektor && <UserManagement currentUserId={user.id} />}
 
           <TestEmailButton />
         </div>

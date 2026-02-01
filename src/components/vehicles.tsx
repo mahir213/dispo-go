@@ -1,7 +1,7 @@
 "use client";
 
 import { formatDistanceToNow, format } from "date-fns";
-import { hr } from "date-fns/locale";
+import { bsLocale } from "@/lib/locale";
 import { TruckIcon, CalendarIcon, PlusIcon, AlertCircle, ChevronRight, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -9,7 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddVehicleDialog } from "@/components/add-vehicle-dialog";
 import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
 import { useEffect, useState } from "react";
+
+const ITEMS_PER_PAGE = 40;
 
 type Vehicle = {
   id: string;
@@ -27,6 +30,7 @@ export function VehiclesList() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetch("/api/vehicles")
@@ -49,6 +53,17 @@ export function VehiclesList() {
       vehicle.vehicleType.toLowerCase().includes(query)
     );
   });
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  // Paginated vehicles
+  const paginatedVehicles = filteredVehicles.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   if (loading) {
     return <VehiclesLoading />;
@@ -91,11 +106,19 @@ export function VehiclesList() {
             <p>Nema rezultata pretrage</p>
           </div>
         ) : (
-          filteredVehicles.map((vehicle) => (
+          paginatedVehicles.map((vehicle) => (
             <VehicleRow key={vehicle.id} data={vehicle} />
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      <Pagination
+        currentPage={currentPage}
+        totalItems={filteredVehicles.length}
+        itemsPerPage={ITEMS_PER_PAGE}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 }
@@ -172,7 +195,7 @@ function VehicleRow({ data }: { data: Vehicle }) {
           <span className="text-sm text-muted-foreground">
             {formatDistanceToNow(new Date(data.updatedAt), {
               addSuffix: true,
-              locale: hr,
+              locale: bsLocale,
             })}
           </span>
         </div>

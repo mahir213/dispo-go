@@ -1,13 +1,16 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { hr } from "date-fns/locale";
+import { bsLocale } from "@/lib/locale";
 import { UserIcon, CalendarIcon, PlusIcon, AlertCircle, ChevronRight, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AddDriverDialog } from "@/components/add-driver-dialog";
 import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
 import { useEffect, useState } from "react";
+
+const ITEMS_PER_PAGE = 40;
 
 type DriverNote = {
   id: string;
@@ -34,6 +37,7 @@ export function DriversList() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetch("/api/drivers")
@@ -57,6 +61,17 @@ export function DriversList() {
       (driver.email && driver.email.toLowerCase().includes(query))
     );
   });
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  // Paginated drivers
+  const paginatedDrivers = filteredDrivers.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   if (loading) {
     return <DriversLoading />;
@@ -99,11 +114,19 @@ export function DriversList() {
             <p>Nema rezultata pretrage</p>
           </div>
         ) : (
-          filteredDrivers.map((driver) => (
+          paginatedDrivers.map((driver) => (
             <DriverRow key={driver.id} data={driver} />
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      <Pagination
+        currentPage={currentPage}
+        totalItems={filteredDrivers.length}
+        itemsPerPage={ITEMS_PER_PAGE}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 }
@@ -176,7 +199,7 @@ function DriverRow({ data }: { data: Driver }) {
           <span className="text-sm text-muted-foreground">
             {formatDistanceToNow(new Date(data.updatedAt), {
               addSuffix: true,
-              locale: hr,
+              locale: bsLocale,
             })}
           </span>
         </div>
