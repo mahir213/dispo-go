@@ -46,12 +46,13 @@ export async function PUT(
         return NextResponse.json({ message: "Driver not found" }, { status: 404 });
       }
 
-      // Check if driver is already assigned to another active tour
+      // Check if driver is already assigned to another active tour (not completed)
       const existingActiveTour = await prisma.contractedTour.findFirst({
         where: {
           driverId: validated.driverId,
           organizationId: authResult.user.organizationId,
           id: { not: id }, // Exclude current tour
+          isCompleted: false, // Only check non-completed tours
         },
       });
 

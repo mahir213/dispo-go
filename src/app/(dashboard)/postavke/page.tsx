@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import db from "@/lib/db";
 import { SettingsForm } from "@/components/settings-form";
-import { TestEmailButton } from "@/components/test-email-button";
 import { UserManagement } from "@/components/user-management";
 
 export default async function SettingsPage() {
@@ -47,8 +46,6 @@ export default async function SettingsPage() {
           <SettingsForm user={user} />
 
           {isDirektor && <UserManagement currentUserId={user.id} />}
-
-          <TestEmailButton />
         </div>
       </div>
     </div>

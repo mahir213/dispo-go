@@ -38,14 +38,14 @@ export async function PUT(
       return NextResponse.json({ error: "Tour not found" }, { status: 404 });
     }
 
-    // Check if truck is already assigned to another active tour (tour with driver)
+    // Check if truck is already assigned to another active tour (not completed)
     if (truckId) {
       const truckInUse = await prisma.contractedTour.findFirst({
         where: {
           truckId: truckId,
           organizationId: authResult.user.organizationId,
           id: { not: id },
-          driverId: { not: null }, // Only check active tours (with driver)
+          isCompleted: false, // Only check non-completed tours
         },
         include: { truck: true },
       });
@@ -58,14 +58,14 @@ export async function PUT(
       }
     }
 
-    // Check if trailer is already assigned to another active tour (tour with driver)
+    // Check if trailer is already assigned to another active tour (not completed)
     if (trailerId) {
       const trailerInUse = await prisma.contractedTour.findFirst({
         where: {
           trailerId: trailerId,
           organizationId: authResult.user.organizationId,
           id: { not: id },
-          driverId: { not: null }, // Only check active tours (with driver)
+          isCompleted: false, // Only check non-completed tours
         },
         include: { trailer: true },
       });

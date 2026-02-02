@@ -34,12 +34,15 @@ export async function PUT(
       );
     }
 
-    // Mark tour as completed
+    // Mark tour as completed and release driver and vehicles
     const tour = await prisma.contractedTour.update({
       where: { id },
       data: {
         isCompleted: true,
         completedAt: new Date(),
+        driverId: null, // Release the driver so they can be assigned to another tour
+        truckId: null, // Release the truck
+        trailerId: null, // Release the trailer
       },
       include: {
         unloadingStops: true,
