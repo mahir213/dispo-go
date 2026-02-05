@@ -83,32 +83,63 @@ type ActiveTour = {
 export function ActiveToursList() {
   const [tours, setTours] = useState<ActiveTour[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [editTour, setEditTour] = useState<ActiveTour | null>(null);
   const [deleteTour, setDeleteTour] = useState<ActiveTour | null>(null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [activeTab, setActiveTab] = useState("sve");
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const ITEMS_PER_PAGE = 40;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentPage(1);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    fetchTours();
+  }, [currentPage, debouncedSearchQuery]);
 
   const fetchTours = () => {
-    setLoading(true);
-    fetch("/api/contracted-tours")
+    const params = new URLSearchParams({
+      page: currentPage.toString(),
+      limit: ITEMS_PER_PAGE.toString(),
+      filterCompleted: "false",
+      ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
+    });
+
+    if (!initialLoadDone) {
+      setLoading(true);
+    } else {
+      setIsSearching(true);
+    }
+    
+    fetch(`/api/contracted-tours?${params}`)
       .then((res) => res.json())
       .then((data) => {
-        // Filter only active tours (with driver assigned and not completed)
-        const activeTours = data.filter((tour: ActiveTour) => 
+        const activeTours = (data.tours || []).filter((tour: ActiveTour) => 
           tour.driverId !== null && tour.isCompleted !== true
         );
         setTours(activeTours);
+        setTotalItems(data.pagination?.total || 0);
         setLoading(false);
+        setIsSearching(false);
+        setInitialLoadDone(true);
       })
       .catch((error) => {
         console.error("Error loading tours:", error);
         setLoading(false);
+        setIsSearching(false);
       });
   };
-
-  useEffect(() => {
-    fetchTours();
-  }, []);
 
   const handleCompleteTour = async (tourId: string) => {
     try {
@@ -128,14 +159,12 @@ export function ActiveToursList() {
     }
   };
 
-  // Helper function to get the last unloading date from a tour
   const getLastUnloadingDate = (tour: ActiveTour): Date | null => {
     if (!tour.unloadingStops || tour.unloadingStops.length === 0) return null;
     const lastStop = tour.unloadingStops[tour.unloadingStops.length - 1];
     return lastStop.unloadingDate ? new Date(lastStop.unloadingDate) : null;
   };
 
-  // Sort function
   const sortTours = (toursToSort: ActiveTour[]): ActiveTour[] => {
     if (!sortOrder) return toursToSort;
     
@@ -143,7 +172,6 @@ export function ActiveToursList() {
       const dateA = getLastUnloadingDate(a);
       const dateB = getLastUnloadingDate(b);
       
-      // Handle null dates - put them at the end
       if (!dateA && !dateB) return 0;
       if (!dateA) return 1;
       if (!dateB) return -1;
@@ -153,30 +181,16 @@ export function ActiveToursList() {
     });
   };
 
-  const filteredTours = tours.filter((tour) => {
-    const query = searchQuery.toLowerCase();
-    const unloadingLocations = tour.unloadingStops?.map(s => s.location.toLowerCase()).join(" ") || "";
-    const driverName = tour.driver?.name.toLowerCase() || "";
-    return (
-      tour.company.toLowerCase().includes(query) ||
-      tour.loadingLocation.toLowerCase().includes(query) ||
-      unloadingLocations.includes(query) ||
-      driverName.includes(query) ||
-      (tour.exportCustoms?.toLowerCase().includes(query) ?? false) ||
-      (tour.importCustoms?.toLowerCase().includes(query) ?? false)
-    );
-  });
-
-  const sortedFilteredTours = sortTours(filteredTours);
-  const uvozTours = sortTours(filteredTours.filter((t) => t.tourType === "UVOZ"));
-  const izvozTours = sortTours(filteredTours.filter((t) => t.tourType === "IZVOZ"));
-  const medjuturaTours = sortTours(filteredTours.filter((t) => t.tourType === "MEDJUTURA"));
+  const sortedTours = sortTours(tours);
+  const uvozTours = sortTours(tours.filter((t) => t.tourType === "UVOZ"));
+  const izvozTours = sortTours(tours.filter((t) => t.tourType === "IZVOZ"));
+  const medjuturaTours = sortTours(tours.filter((t) => t.tourType === "MEDJUTURA"));
 
   if (loading) {
     return <ActiveToursLoading />;
   }
 
-  if (tours.length === 0) {
+  if (tours.length === 0 && !debouncedSearchQuery) {
     return <ActiveToursEmpty />;
   }
 
@@ -193,15 +207,20 @@ export function ActiveToursList() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
+          {isSearching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="sve" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="px-8 pt-4">
           <TabsList>
             <TabsTrigger value="sve">
-              Sve ({filteredTours.length})
+              Sve ({sortedTours.length})
             </TabsTrigger>
             <TabsTrigger value="uvoz">
               Uvoz ({uvozTours.length})
@@ -217,13 +236,17 @@ export function ActiveToursList() {
 
         <TabsContent value="sve" className="mt-0">
           <TourTable
-            tours={sortedFilteredTours}
+            tours={sortedTours}
             onEdit={setEditTour}
             onDelete={setDeleteTour}
             onComplete={handleCompleteTour}
             searchQuery={searchQuery}
             sortOrder={sortOrder}
             onSortChange={setSortOrder}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
           />
         </TabsContent>
 
@@ -236,6 +259,10 @@ export function ActiveToursList() {
             searchQuery={searchQuery}
             sortOrder={sortOrder}
             onSortChange={setSortOrder}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
           />
         </TabsContent>
 
@@ -245,9 +272,13 @@ export function ActiveToursList() {
             onEdit={setEditTour}
             onDelete={setDeleteTour}
             onComplete={handleCompleteTour}
+            searchQuery={searchQuery}
             sortOrder={sortOrder}
             onSortChange={setSortOrder}
-            searchQuery={searchQuery}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
           />
         </TabsContent>
 
@@ -260,6 +291,42 @@ export function ActiveToursList() {
             searchQuery={searchQuery}
             sortOrder={sortOrder}
             onSortChange={setSortOrder}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
+        </TabsContent>
+
+        <TabsContent value="izvoz" className="mt-0">
+          <TourTable
+            tours={izvozTours}
+            onEdit={setEditTour}
+            onDelete={setDeleteTour}
+            onComplete={handleCompleteTour}
+            searchQuery={searchQuery}
+            sortOrder={sortOrder}
+            onSortChange={setSortOrder}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
+        </TabsContent>
+
+        <TabsContent value="medjutura" className="mt-0">
+          <TourTable
+            tours={medjuturaTours}
+            onEdit={setEditTour}
+            onDelete={setDeleteTour}
+            onComplete={handleCompleteTour}
+            searchQuery={searchQuery}
+            sortOrder={sortOrder}
+            onSortChange={setSortOrder}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
           />
         </TabsContent>
       </Tabs>
@@ -323,6 +390,10 @@ function TourTable({
   searchQuery,
   sortOrder,
   onSortChange,
+  currentPage,
+  totalItems,
+  itemsPerPage,
+  onPageChange,
 }: {
   tours: ActiveTour[];
   onEdit: (tour: ActiveTour) => void;
@@ -331,15 +402,11 @@ function TourTable({
   searchQuery: string;
   sortOrder: "asc" | "desc" | null;
   onSortChange: (order: "asc" | "desc" | null) => void;
+  currentPage: number;
+  totalItems: number;
+  itemsPerPage: number;
+  onPageChange: (page: number) => void;
 }) {
-  const ITEMS_PER_PAGE = 40;
-  const [currentPage, setCurrentPage] = useState(1);
-
-  // Reset page when tours change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [tours.length, searchQuery]);
-
   const handleSortClick = () => {
     if (sortOrder === null) {
       onSortChange("asc");
@@ -363,12 +430,6 @@ function TourTable({
 
   // Grid columns: Tip | Kompanija | Kamion | Prikolica | Vozač | Utovar | Istovar | Carine | Cijena | ADR | Završi | Akcije
   const gridCols = "grid-cols-[60px_1fr_130px_130px_140px_1fr_1fr_90px_80px_60px_90px_48px]";
-
-  // Paginated tours
-  const paginatedTours = tours.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
 
   return (
     <>
@@ -397,7 +458,7 @@ function TourTable({
 
       {/* Table Body */}
       <div className="divide-y">
-        {paginatedTours.map((tour) => (
+        {tours.map((tour) => (
           <TourRow key={tour.id} tour={tour} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} gridCols={gridCols} />
         ))}
       </div>
@@ -405,9 +466,9 @@ function TourTable({
       {/* Pagination */}
       <Pagination
         currentPage={currentPage}
-        totalItems={tours.length}
-        itemsPerPage={ITEMS_PER_PAGE}
-        onPageChange={setCurrentPage}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+        onPageChange={onPageChange}
       />
     </>
   );

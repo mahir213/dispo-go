@@ -71,25 +71,55 @@ type HistoryTour = {
 export function TourHistory() {
   const [tours, setTours] = useState<HistoryTour[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [activeTab, setActiveTab] = useState("nefakturisane");
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const ITEMS_PER_PAGE = 40;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentPage(1);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     fetchTours();
-  }, []);
+  }, [currentPage, debouncedSearchQuery]);
 
   const fetchTours = () => {
-    setLoading(true);
-    fetch("/api/contracted-tours")
+    const params = new URLSearchParams({
+      page: currentPage.toString(),
+      limit: ITEMS_PER_PAGE.toString(),
+      filterCompleted: "true",
+      ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
+    });
+
+    if (!initialLoadDone) {
+      setLoading(true);
+    } else {
+      setIsSearching(true);
+    }
+    
+    fetch(`/api/contracted-tours?${params}`)
       .then((res) => res.json())
       .then((data) => {
-        // Filter only completed tours
-        const completedTours = data.filter((tour: HistoryTour) => tour.isCompleted === true);
-        setTours(completedTours);
+        setTours(data.tours || []);
+        setTotalItems(data.pagination?.total || 0);
         setLoading(false);
+        setIsSearching(false);
+        setInitialLoadDone(true);
       })
       .catch((error) => {
         console.error("Error loading tours:", error);
         setLoading(false);
+        setIsSearching(false);
       });
   };
 
@@ -133,30 +163,16 @@ export function TourHistory() {
     }
   };
 
-  const filteredTours = tours.filter((tour) => {
-    const query = searchQuery.toLowerCase();
-    const unloadingLocations = tour.unloadingStops?.map(s => s.location.toLowerCase()).join(" ") || "";
-    const driverName = tour.driver?.name.toLowerCase() || "";
-    return (
-      tour.company.toLowerCase().includes(query) ||
-      tour.loadingLocation.toLowerCase().includes(query) ||
-      unloadingLocations.includes(query) ||
-      driverName.includes(query) ||
-      (tour.exportCustoms?.toLowerCase().includes(query) ?? false) ||
-      (tour.importCustoms?.toLowerCase().includes(query) ?? false)
-    );
-  });
-
-  const nefakturisaneTours = filteredTours.filter((t) => !t.isInvoiced);
-  const fakturisaneTours = filteredTours.filter((t) => t.isInvoiced);
-
   if (loading) {
     return <TourHistoryLoading />;
   }
 
-  if (tours.length === 0) {
+  if (tours.length === 0 && !debouncedSearchQuery) {
     return <TourHistoryEmpty />;
   }
+
+  const nefakturisaneTours = tours.filter((t) => !t.isInvoiced);
+  const fakturisaneTours = tours.filter((t) => t.isInvoiced);
 
   return (
     <div className="flex flex-col w-full">
@@ -171,11 +187,16 @@ export function TourHistory() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
+          {isSearching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="nefakturisane" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="px-8 pt-4">
           <TabsList>
             <TabsTrigger value="nefakturisane">
@@ -193,6 +214,10 @@ export function TourHistory() {
             searchQuery={searchQuery}
             showInvoiceButton={true}
             onMarkAsInvoiced={handleMarkAsInvoiced}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
           />
         </TabsContent>
 
@@ -202,6 +227,10 @@ export function TourHistory() {
             searchQuery={searchQuery}
             showInvoiceButton={false}
             onUnmarkAsInvoiced={handleUnmarkAsInvoiced}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
           />
         </TabsContent>
       </Tabs>
@@ -244,21 +273,21 @@ function TourTable({
   showInvoiceButton,
   onMarkAsInvoiced,
   onUnmarkAsInvoiced,
+  currentPage,
+  totalItems,
+  itemsPerPage,
+  onPageChange,
 }: {
   tours: HistoryTour[];
   searchQuery: string;
   showInvoiceButton: boolean;
   onMarkAsInvoiced?: (id: string) => void;
   onUnmarkAsInvoiced?: (id: string) => void;
+  currentPage: number;
+  totalItems: number;
+  itemsPerPage: number;
+  onPageChange: (page: number) => void;
 }) {
-  const ITEMS_PER_PAGE = 40;
-  const [currentPage, setCurrentPage] = useState(1);
-
-  // Reset page when tours change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [tours.length, searchQuery]);
-
   if (tours.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -270,12 +299,6 @@ function TourTable({
 
   // Grid columns: Tip | Kompanija | Kamion | Prikolica | Vozač | Utovar | Istovar | Cijena | ADR | Završeno | Akcije
   const gridCols = "grid-cols-[60px_1fr_130px_130px_140px_1fr_1fr_100px_60px_100px_120px]";
-
-  // Paginated tours
-  const paginatedTours = tours.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
 
   return (
     <>
@@ -296,7 +319,7 @@ function TourTable({
 
       {/* Table Body */}
       <div className="divide-y">
-        {paginatedTours.map((tour) => (
+        {tours.map((tour) => (
           <TourRow 
             key={tour.id} 
             tour={tour} 
@@ -311,9 +334,9 @@ function TourTable({
       {/* Pagination */}
       <Pagination
         currentPage={currentPage}
-        totalItems={tours.length}
-        itemsPerPage={ITEMS_PER_PAGE}
-        onPageChange={setCurrentPage}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+        onPageChange={onPageChange}
       />
     </>
   );

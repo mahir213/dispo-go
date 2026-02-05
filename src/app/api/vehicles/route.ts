@@ -72,16 +72,73 @@ export async function GET(request: Request) {
     if (permissionError) return permissionError;
     if (authResult instanceof NextResponse) return authResult;
 
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "40");
+    const search = searchParams.get("search") || "";
+    const skip = (page - 1) * limit;
+
+    // Build where clause
+    const whereClause: any = {
+      organizationId: authResult.user.organizationId,
+    };
+
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { registrationNumber: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    // Get total count for pagination
+    const total = await prisma.vehicle.count({
+      where: whereClause,
+    });
+
     const vehicles = await prisma.vehicle.findMany({
-      where: {
-        organizationId: authResult.user.organizationId,
+      where: whereClause,
+      include: {
+        truckTours: {
+          where: {
+            isCompleted: false,
+          },
+          select: {
+            id: true,
+          },
+        },
+        trailerTours: {
+          where: {
+            isCompleted: false,
+          },
+          select: {
+            id: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
+      skip,
+      take: limit,
     });
 
-    return NextResponse.json(vehicles);
+    // Add isAvailable flag
+    const vehiclesWithAvailability = vehicles.map((vehicle) => ({
+      ...vehicle,
+      isAvailable: vehicle.truckTours.length === 0 && vehicle.trailerTours.length === 0,
+      truckTours: undefined,
+      trailerTours: undefined,
+    }));
+
+    return NextResponse.json({
+      vehicles: vehiclesWithAvailability,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error("Error fetching vehicles:", error);
     return NextResponse.json(

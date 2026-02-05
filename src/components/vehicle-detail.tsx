@@ -36,6 +36,7 @@ interface Vehicle {
   ppAparatExpiryDate: string | null;
   createdAt: string;
   updatedAt: string;
+  isAvailable?: boolean;
 }
 
 interface MaintenanceRecord {
@@ -175,7 +176,14 @@ export function VehicleDetailClient({ vehicle }: VehicleDetailClientProps) {
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">{vehicle.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">{vehicle.name}</h1>
+              {vehicle.isAvailable && vehicle.vehicleType === "KAMION" && (
+                <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
+                  Slobodan
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground font-mono">
               {vehicle.registrationNumber}
             </p>

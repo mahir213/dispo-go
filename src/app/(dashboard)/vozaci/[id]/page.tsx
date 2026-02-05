@@ -1,7 +1,7 @@
-import { requireAuth } from "@/lib/auth-utils";
 import prisma from "@/lib/db";
 import { notFound } from "next/navigation";
 import { DriverDetailClient } from "@/components/driver-detail";
+import { requireAuth } from "@/lib/auth-utils";
 
 interface PageProps {
   params: Promise<{ id: string }>;

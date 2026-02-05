@@ -1,9 +1,9 @@
 "use server";
 
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSession, getUserData } from "@/lib/auth-utils";
 import db from "@/lib/db";
 import { UserRole } from "@prisma/client";
+import { cache } from "react";
 
 export type Permission = 
   | "view_vehicles"
@@ -19,7 +19,7 @@ export type Permission =
   | "view_settings"
   | "edit_settings";
 
-// Definicija dozvola po ulozi
+
 const rolePermissions: Record<UserRole, Permission[]> = {
   DIREKTOR: [
     "view_vehicles",
@@ -62,10 +62,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
   ],
 };
 
-export async function getCurrentUser() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+export const getCurrentUser = cache(async () => {
+  const session = await getSession();
 
   if (!session) {
     return null;
@@ -84,7 +82,7 @@ export async function getCurrentUser() {
   });
 
   return user;
-}
+});
 
 export async function hasPermission(permission: Permission): Promise<boolean> {
   const user = await getCurrentUser();

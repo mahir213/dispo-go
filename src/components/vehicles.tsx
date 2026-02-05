@@ -24,52 +24,62 @@ type Vehicle = {
   ppAparatExpiryDate: string | null;
   createdAt: string;
   updatedAt: string;
+  isAvailable?: boolean;
 };
 
 export function VehiclesList() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   useEffect(() => {
-    fetch("/api/vehicles")
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentPage(1);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const params = new URLSearchParams({
+      page: currentPage.toString(),
+      limit: ITEMS_PER_PAGE.toString(),
+      ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
+    });
+
+    if (!initialLoadDone) {
+      setLoading(true);
+    } else {
+      setIsSearching(true);
+    }
+    
+    fetch(`/api/vehicles?${params}`)
       .then((res) => res.json())
       .then((data) => {
-        setVehicles(data);
+        setVehicles(data.vehicles || []);
+        setTotalItems(data.pagination?.total || 0);
         setLoading(false);
+        setIsSearching(false);
+        setInitialLoadDone(true);
       })
       .catch((error) => {
         console.error("Error loading vehicles:", error);
         setLoading(false);
+        setIsSearching(false);
       });
-  }, []);
-
-  const filteredVehicles = vehicles.filter((vehicle) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      vehicle.name.toLowerCase().includes(query) ||
-      vehicle.registrationNumber.toLowerCase().includes(query) ||
-      vehicle.vehicleType.toLowerCase().includes(query)
-    );
-  });
-
-  // Reset to page 1 when search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
-
-  // Paginated vehicles
-  const paginatedVehicles = filteredVehicles.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+  }, [currentPage, debouncedSearchQuery]);
 
   if (loading) {
     return <VehiclesLoading />;
   }
 
-  if (vehicles.length === 0) {
+  if (vehicles.length === 0 && !debouncedSearchQuery) {
     return <VehiclesEmpty />;
   }
 
@@ -86,6 +96,11 @@ export function VehiclesList() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
+          {isSearching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+            </div>
+          )}
         </div>
       </div>
 
@@ -100,25 +115,27 @@ export function VehiclesList() {
       
       {/* Table Body */}
       <div className="divide-y">
-        {filteredVehicles.length === 0 ? (
+        {vehicles.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <SearchIcon className="h-12 w-12 mx-auto mb-2 opacity-20" />
             <p>Nema rezultata pretrage</p>
           </div>
         ) : (
-          paginatedVehicles.map((vehicle) => (
+          vehicles.map((vehicle) => (
             <VehicleRow key={vehicle.id} data={vehicle} />
           ))
         )}
       </div>
 
       {/* Pagination */}
-      <Pagination
-        currentPage={currentPage}
-        totalItems={filteredVehicles.length}
-        itemsPerPage={ITEMS_PER_PAGE}
-        onPageChange={setCurrentPage}
-      />
+      {totalItems > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={totalItems}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
+      )}
     </div>
   );
 }
@@ -158,7 +175,14 @@ function VehicleRow({ data }: { data: Vehicle }) {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="font-medium truncate">{data.name}</div>
+            <div className="font-medium truncate flex items-center gap-2">
+              {data.name}
+              {data.isAvailable && data.vehicleType === "KAMION" && (
+                <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                  Slobodan
+                </span>
+              )}
+            </div>
             <div className="text-sm text-muted-foreground font-mono truncate">{data.registrationNumber}</div>
           </div>
         </div>

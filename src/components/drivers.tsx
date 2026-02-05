@@ -36,48 +36,56 @@ type Driver = {
 export function DriversList() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   useEffect(() => {
-    fetch("/api/drivers")
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentPage(1);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const params = new URLSearchParams({
+      page: currentPage.toString(),
+      limit: ITEMS_PER_PAGE.toString(),
+      ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
+    });
+
+    if (!initialLoadDone) {
+      setLoading(true);
+    } else {
+      setIsSearching(true);
+    }
+    
+    fetch(`/api/drivers?${params}`)
       .then((res) => res.json())
       .then((data) => {
-        setDrivers(data);
+        setDrivers(data.drivers || []);
+        setTotalItems(data.pagination?.total || 0);
         setLoading(false);
+        setIsSearching(false);
+        setInitialLoadDone(true);
       })
       .catch((error) => {
         console.error("Error loading drivers:", error);
         setLoading(false);
+        setIsSearching(false);
       });
-  }, []);
-
-  const filteredDrivers = drivers.filter((driver) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      driver.name.toLowerCase().includes(query) ||
-      driver.phoneNumber.toLowerCase().includes(query) ||
-      driver.licenseNumber.toLowerCase().includes(query) ||
-      (driver.email && driver.email.toLowerCase().includes(query))
-    );
-  });
-
-  // Reset to page 1 when search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
-
-  // Paginated drivers
-  const paginatedDrivers = filteredDrivers.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+  }, [currentPage, debouncedSearchQuery]);
 
   if (loading) {
     return <DriversLoading />;
   }
 
-  if (drivers.length === 0) {
+  if (drivers.length === 0 && !debouncedSearchQuery) {
     return <DriversEmpty />;
   }
 
@@ -94,6 +102,11 @@ export function DriversList() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
+          {isSearching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+            </div>
+          )}
         </div>
       </div>
 
@@ -108,25 +121,27 @@ export function DriversList() {
       
       {/* Table Body */}
       <div className="divide-y">
-        {filteredDrivers.length === 0 ? (
+        {drivers.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <SearchIcon className="h-12 w-12 mx-auto mb-2 opacity-20" />
             <p>Nema rezultata pretrage</p>
           </div>
         ) : (
-          paginatedDrivers.map((driver) => (
+          drivers.map((driver) => (
             <DriverRow key={driver.id} data={driver} />
           ))
         )}
       </div>
 
       {/* Pagination */}
-      <Pagination
-        currentPage={currentPage}
-        totalItems={filteredDrivers.length}
-        itemsPerPage={ITEMS_PER_PAGE}
-        onPageChange={setCurrentPage}
-      />
+      {totalItems > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={totalItems}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
+      )}
     </div>
   );
 }

@@ -77,50 +77,71 @@ type ContractedTour = {
 export function ContractedToursList() {
   const [tours, setTours] = useState<ContractedTour[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [editTour, setEditTour] = useState<ContractedTour | null>(null);
   const [deleteTour, setDeleteTour] = useState<ContractedTour | null>(null);
   const [activateTour, setActivateTour] = useState<ContractedTour | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [activeTab, setActiveTab] = useState("ugovorene");
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const ITEMS_PER_PAGE = 40;
 
   useEffect(() => {
-    fetch("/api/contracted-tours")
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentPage(1);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    fetchTours();
+  }, [currentPage, debouncedSearchQuery]);
+
+  const fetchTours = () => {
+    const params = new URLSearchParams({
+      page: currentPage.toString(),
+      limit: ITEMS_PER_PAGE.toString(),
+      filterCompleted: "false",
+      ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
+    });
+
+    if (!initialLoadDone) {
+      setLoading(true);
+    } else {
+      setIsSearching(true);
+    }
+    
+    fetch(`/api/contracted-tours?${params}`)
       .then((res) => res.json())
       .then((data) => {
-        setTours(data);
+        setTours(data.tours || []);
+        setTotalItems(data.pagination?.total || 0);
         setLoading(false);
+        setIsSearching(false);
+        setInitialLoadDone(true);
       })
       .catch((error) => {
         console.error("Error loading tours:", error);
         setLoading(false);
+        setIsSearching(false);
       });
-  }, []);
+  };
 
-  const filteredTours = tours.filter((tour) => {
-    const query = searchQuery.toLowerCase();
-    const unloadingLocations = tour.unloadingStops?.map(s => s.location.toLowerCase()).join(" ") || "";
-    const driverName = tour.driver?.name.toLowerCase() || "";
-    return (
-      tour.company.toLowerCase().includes(query) ||
-      tour.loadingLocation.toLowerCase().includes(query) ||
-      unloadingLocations.includes(query) ||
-      driverName.includes(query) ||
-      (tour.exportCustoms?.toLowerCase().includes(query) ?? false) ||
-      (tour.importCustoms?.toLowerCase().includes(query) ?? false)
-    );
-  });
-
-  // Tours without driver = contracted (ugovorene)
-  const ugovoreneTours = filteredTours.filter((t) => t.driverId === null);
-  
-  const uvozTours = ugovoreneTours.filter((t) => t.tourType === "UVOZ");
-  const izvozTours = ugovoreneTours.filter((t) => t.tourType === "IZVOZ");
-  const medjuturaTours = ugovoreneTours.filter((t) => t.tourType === "MEDJUTURA");
+  const ugovoreneTours = tours.filter((t) => t.driverId === null);
+  const uvozTours = tours.filter((t) => t.tourType === "UVOZ" && t.driverId === null);
+  const izvozTours = tours.filter((t) => t.tourType === "IZVOZ" && t.driverId === null);
+  const medjuturaTours = tours.filter((t) => t.tourType === "MEDJUTURA" && t.driverId === null);
 
   if (loading) {
     return <ContractedToursLoading />;
   }
 
-  if (tours.length === 0) {
+  if (tours.length === 0 && !debouncedSearchQuery) {
     return <ContractedToursEmpty />;
   }
 
@@ -137,11 +158,16 @@ export function ContractedToursList() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
+          {isSearching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="ugovorene" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="px-8 pt-4">
           <TabsList>
             <TabsTrigger value="ugovorene">
@@ -166,6 +192,10 @@ export function ContractedToursList() {
             onDelete={setDeleteTour}
             onActivate={setActivateTour}
             searchQuery={searchQuery}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
           />
         </TabsContent>
 
@@ -176,6 +206,10 @@ export function ContractedToursList() {
             onDelete={setDeleteTour}
             onActivate={setActivateTour}
             searchQuery={searchQuery}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
           />
         </TabsContent>
 
@@ -186,6 +220,10 @@ export function ContractedToursList() {
             onDelete={setDeleteTour}
             onActivate={setActivateTour}
             searchQuery={searchQuery}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
           />
         </TabsContent>
 
@@ -196,6 +234,10 @@ export function ContractedToursList() {
             onDelete={setDeleteTour}
             onActivate={setActivateTour}
             searchQuery={searchQuery}
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
           />
         </TabsContent>
       </Tabs>
@@ -267,21 +309,21 @@ function TourTable({
   onDelete,
   onActivate,
   searchQuery,
+  currentPage,
+  totalItems,
+  itemsPerPage,
+  onPageChange,
 }: {
   tours: ContractedTour[];
   onEdit: (tour: ContractedTour) => void;
   onDelete: (tour: ContractedTour) => void;
   onActivate: (tour: ContractedTour) => void;
   searchQuery: string;
+  currentPage: number;
+  totalItems: number;
+  itemsPerPage: number;
+  onPageChange: (page: number) => void;
 }) {
-  const ITEMS_PER_PAGE = 40;
-  const [currentPage, setCurrentPage] = useState(1);
-
-  // Reset page when tours change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [tours.length, searchQuery]);
-
   if (tours.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -293,12 +335,6 @@ function TourTable({
 
   // Grid columns: Tip | Kompanija | Utovar | Istovar | Carine | Cijena | ADR | Aktiviraj | Akcije
   const gridCols = "grid-cols-[60px_1fr_1fr_1fr_100px_100px_60px_100px_48px]";
-
-  // Paginated tours
-  const paginatedTours = tours.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
 
   return (
     <>
@@ -317,7 +353,7 @@ function TourTable({
 
       {/* Table Body */}
       <div className="divide-y">
-        {paginatedTours.map((tour) => (
+        {tours.map((tour) => (
           <TourRow key={tour.id} tour={tour} onEdit={onEdit} onDelete={onDelete} onActivate={onActivate} gridCols={gridCols} />
         ))}
       </div>
@@ -325,9 +361,9 @@ function TourTable({
       {/* Pagination */}
       <Pagination
         currentPage={currentPage}
-        totalItems={tours.length}
-        itemsPerPage={ITEMS_PER_PAGE}
-        onPageChange={setCurrentPage}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+        onPageChange={onPageChange}
       />
     </>
   );

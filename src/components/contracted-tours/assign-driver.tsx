@@ -55,14 +55,13 @@ export function AssignDriver({ tourId, currentDriver, onAssigned }: AssignDriver
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const router = useRouter();
 
-  // Load drivers when popover opens
   useEffect(() => {
     if (open && drivers.length === 0) {
       setLoading(true);
-      fetch("/api/drivers")
+      fetch("/api/drivers?limit=1000")
         .then((res) => res.json())
         .then((data) => {
-          setDrivers(data);
+          setDrivers(data.drivers || data);
           setLoading(false);
         })
         .catch(() => {
@@ -73,14 +72,11 @@ export function AssignDriver({ tourId, currentDriver, onAssigned }: AssignDriver
   }, [open, drivers.length]);
 
   const handleSelectDriver = (driver: Driver) => {
-    // Check if user has opted out of confirmation dialog
     const dontShow = localStorage.getItem(DONT_SHOW_POPUP_KEY) === "true";
     
     if (dontShow) {
-      // Directly assign without confirmation
       assignDriver(driver);
     } else {
-      // Show confirmation dialog
       setSelectedDriver(driver);
       setShowConfirmDialog(true);
     }

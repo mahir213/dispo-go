@@ -67,18 +67,18 @@ export function ActivateTourDialog({ tourId, tourName, open, onOpenChange }: Act
   
   const router = useRouter();
 
-  // Load data when dialog opens
   useEffect(() => {
     if (open) {
       setLoading(true);
       Promise.all([
-        fetch("/api/drivers").then(res => res.json()),
-        fetch("/api/vehicles").then(res => res.json()),
+        fetch("/api/drivers?limit=1000").then(res => res.json()),
+        fetch("/api/vehicles?limit=1000").then(res => res.json()),
       ])
         .then(([driversData, vehiclesData]) => {
-          setDrivers(driversData);
-          setTrucks(vehiclesData.filter((v: Vehicle) => v.vehicleType === "KAMION"));
-          setTrailers(vehiclesData.filter((v: Vehicle) => v.vehicleType === "PRIKOLICA"));
+          setDrivers(driversData.drivers || driversData);
+          const vehicles = vehiclesData.vehicles || vehiclesData;
+          setTrucks(vehicles.filter((v: Vehicle) => v.vehicleType === "KAMION"));
+          setTrailers(vehicles.filter((v: Vehicle) => v.vehicleType === "PRIKOLICA"));
           setLoading(false);
         })
         .catch(() => {
@@ -88,7 +88,6 @@ export function ActivateTourDialog({ tourId, tourName, open, onOpenChange }: Act
     }
   }, [open]);
 
-  // Reset selections when dialog closes
   useEffect(() => {
     if (!open) {
       setSelectedDriver(null);
@@ -105,7 +104,6 @@ export function ActivateTourDialog({ tourId, tourName, open, onOpenChange }: Act
 
     setActivating(true);
     try {
-      // Assign driver
       const driverRes = await fetch(`/api/contracted-tours/${tourId}/assign-driver`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -117,7 +115,6 @@ export function ActivateTourDialog({ tourId, tourName, open, onOpenChange }: Act
         throw new Error(data.message || "Failed to assign driver");
       }
 
-      // Assign truck
       const truckRes = await fetch(`/api/contracted-tours/${tourId}/assign-vehicle`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -129,7 +126,6 @@ export function ActivateTourDialog({ tourId, tourName, open, onOpenChange }: Act
         throw new Error(data.error || "Failed to assign truck");
       }
 
-      // Assign trailer
       const trailerRes = await fetch(`/api/contracted-tours/${tourId}/assign-vehicle`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

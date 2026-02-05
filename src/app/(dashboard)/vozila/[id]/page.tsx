@@ -16,11 +16,32 @@ const VehicleDetailPage = async ({ params }: PageProps) => {
       id,
       organizationId: session.user.organizationId,
     },
+    include: {
+      truckTours: {
+        where: {
+          isCompleted: false,
+        },
+        select: {
+          id: true,
+        },
+      },
+      trailerTours: {
+        where: {
+          isCompleted: false,
+        },
+        select: {
+          id: true,
+        },
+      },
+    },
   });
 
   if (!vehicle) {
     notFound();
   }
+
+  // Calculate availability
+  const isAvailable = vehicle.truckTours.length === 0 && vehicle.trailerTours.length === 0;
 
   // Serijalizuj datume kao ISO stringove
   const serializedVehicle = {
@@ -30,6 +51,9 @@ const VehicleDetailPage = async ({ params }: PageProps) => {
     ppAparatExpiryDate: vehicle.ppAparatExpiryDate?.toISOString() || null,
     createdAt: vehicle.createdAt.toISOString(),
     updatedAt: vehicle.updatedAt.toISOString(),
+    isAvailable,
+    truckTours: undefined,
+    trailerTours: undefined,
   };
 
   return <VehicleDetailClient vehicle={serializedVehicle} />;

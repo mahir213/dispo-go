@@ -102,6 +102,8 @@ model Vehicle {
   trailerTours           ContractedTour[]    @relation("TrailerTours")
 
   @@unique([registrationNumber, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
   @@map("vehicle")
 }
 
@@ -149,6 +151,8 @@ model Driver {
   contractedTours       ContractedTour[]
 
   @@unique([licenseNumber, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
   @@map("driver")
 }
 
@@ -161,6 +165,7 @@ model DriverNote {
   updatedAt DateTime @updatedAt
   driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
 
+  @@index([driverId])
   @@map("driver_note")
 }
 
@@ -189,6 +194,11 @@ model ContractedTour {
   trailer         Vehicle?        @relation("TrailerTours", fields: [trailerId], references: [id], onDelete: SetNull)
   unloadingStops  UnloadingStop[]
 
+  @@index([organizationId])
+  @@index([organizationId, isCompleted])
+  @@index([organizationId, isCompleted, createdAt])
+  @@index([truckId])
+  @@index([trailerId])
   @@map("contracted_tour")
 }
 
@@ -201,6 +211,7 @@ model UnloadingStop {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
+  @@index([tourId])
   @@map("unloading_stop")
 }
 

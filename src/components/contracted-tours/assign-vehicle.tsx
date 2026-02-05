@@ -45,15 +45,14 @@ export function AssignVehicle({ tourId, vehicleType, currentVehicle, onAssigned 
   const label = vehicleType === "KAMION" ? "Kamion" : "Prikolica";
   const fieldName = vehicleType === "KAMION" ? "truckId" : "trailerId";
 
-  // Load vehicles when popover opens
   useEffect(() => {
     if (open && vehicles.length === 0) {
       setLoading(true);
-      fetch("/api/vehicles")
+      fetch("/api/vehicles?limit=1000")
         .then((res) => res.json())
         .then((data) => {
-          // Filter by vehicle type
-          const filtered = data.filter((v: Vehicle) => v.vehicleType === vehicleType);
+          const allVehicles = data.vehicles || data;
+          const filtered = allVehicles.filter((v: Vehicle) => v.vehicleType === vehicleType);
           setVehicles(filtered);
           setLoading(false);
         })
