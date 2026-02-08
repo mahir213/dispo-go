@@ -26,8 +26,9 @@ RUN npm ci --prefer-offline --no-audit --legacy-peer-deps
 # Copy application source code
 COPY . .
 
-# Generate Prisma Client
-RUN npx prisma generate
+# Add arm64 binary target for Prisma Client and generate
+RUN sed -i 's|provider = "prisma-client-js"|provider = "prisma-client-js"\n  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]|' prisma/schema.prisma && \
+    npx prisma generate
 
 # Build the application
 RUN npm run build
