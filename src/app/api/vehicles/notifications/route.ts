@@ -1,21 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import db from "@/lib/db";
+import { checkAuth, requirePermission } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "view_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const vehicles = await db.vehicle.findMany({
       where: {
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
       select: {
         id: true,

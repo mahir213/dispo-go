@@ -1,9 +1,8 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { z } from "zod";
 import { VehicleType } from "@prisma/client";
+import { checkAuth, requirePermission } from "@/lib/api-auth";
 
 const vehicleSchema = z.object({
   name: z.string().min(1),
@@ -16,13 +15,10 @@ const vehicleSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "edit_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const body = await request.json();
     const validated = vehicleSchema.parse(body);
@@ -41,7 +37,7 @@ export async function POST(request: Request) {
         ppAparatExpiryDate: validated.ppAparatExpiryDate
           ? new Date(validated.ppAparatExpiryDate)
           : null,
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
     });
 
@@ -71,24 +67,78 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "view_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "40");
+    const search = searchParams.get("search") || "";
+    const skip = (page - 1) * limit;
+
+    // Build where clause
+    const whereClause: any = {
+      organizationId: authResult.user.organizationId,
+    };
+
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { registrationNumber: { contains: search, mode: "insensitive" } },
+      ];
     }
 
+    // Get total count for pagination
+    const total = await prisma.vehicle.count({
+      where: whereClause,
+    });
+
     const vehicles = await prisma.vehicle.findMany({
-      where: {
-        userId: session.user.id,
+      where: whereClause,
+      include: {
+        truckTours: {
+          where: {
+            isCompleted: false,
+          },
+          select: {
+            id: true,
+          },
+        },
+        trailerTours: {
+          where: {
+            isCompleted: false,
+          },
+          select: {
+            id: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
+      skip,
+      take: limit,
     });
 
-    return NextResponse.json(vehicles);
+    // Add isAvailable flag
+    const vehiclesWithAvailability = vehicles.map((vehicle) => ({
+      ...vehicle,
+      isAvailable: vehicle.truckTours.length === 0 && vehicle.trailerTours.length === 0,
+      truckTours: undefined,
+      trailerTours: undefined,
+    }));
+
+    return NextResponse.json({
+      vehicles: vehiclesWithAvailability,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error("Error fetching vehicles:", error);
     return NextResponse.json(

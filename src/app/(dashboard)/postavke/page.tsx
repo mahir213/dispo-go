@@ -1,33 +1,35 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { requireAuth } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import db from "@/lib/db";
 import { SettingsForm } from "@/components/settings-form";
-import { TestEmailButton } from "@/components/test-email-button";
+import { UserManagement } from "@/components/user-management";
+import { cache } from "react";
 
-export default async function SettingsPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) {
-    redirect("/login");
-  }
-
-  const user = await db.user.findUnique({
-    where: { id: session.user.id },
+// Cache the user settings fetch
+const getUserSettings = cache(async (userId: string) => {
+  return db.user.findUnique({
+    where: { id: userId },
     select: {
       id: true,
       name: true,
       email: true,
+      role: true,
       emailNotificationsEnabled: true,
       notificationDaysBefore: true,
     },
   });
+});
+
+export default async function SettingsPage() {
+  const session = await requireAuth();
+
+  const user = await getUserSettings(session.user.id);
 
   if (!user) {
     redirect("/login");
   }
+
+  const isDirektor = user.role === "DIREKTOR";
 
   return (
     <div className="flex-1 overflow-auto">
@@ -42,7 +44,7 @@ export default async function SettingsPage() {
 
           <SettingsForm user={user} />
 
-          <TestEmailButton />
+          {isDirektor && <UserManagement currentUserId={user.id} />}
         </div>
       </div>
     </div>

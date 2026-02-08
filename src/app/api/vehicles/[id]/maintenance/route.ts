@@ -1,27 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import db from "@/lib/db";
+import { checkAuth, requirePermission } from "@/lib/api-auth";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "view_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const { id } = await params;
 
     const records = await db.maintenanceRecord.findMany({
       where: {
         vehicleId: id,
         vehicle: {
-          userId: session.user.id,
+          organizationId: authResult.user.organizationId,
         },
       },
       orderBy: {
@@ -44,15 +41,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "edit_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
+
     const { id } = await params;
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-
     const body = await request.json();
     const { description, date } = body;
 
@@ -63,11 +57,11 @@ export async function POST(
       );
     }
 
-    // Verify vehicle belongs to user
+    // Verify vehicle belongs to organization
     const vehicle = await db.vehicle.findFirst({
       where: {
         id: id,
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
     });
 
@@ -101,15 +95,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "edit_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
+
     const { id } = await params;
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const recordId = searchParams.get("recordId");
 
@@ -120,13 +111,13 @@ export async function DELETE(
       );
     }
 
-    // Verify record belongs to user's vehicle
+    // Verify record belongs to organization's vehicle
     const record = await db.maintenanceRecord.findFirst({
       where: {
         id: recordId,
         vehicleId: id,
         vehicle: {
-          userId: session.user.id,
+          organizationId: authResult.user.organizationId,
         },
       },
     });

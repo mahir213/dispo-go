@@ -1,9 +1,8 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { z } from "zod";
 import { VehicleType } from "@prisma/client";
+import { checkAuth, requirePermission } from "@/lib/api-auth";
 
 const vehicleUpdateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -20,20 +19,17 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "view_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const { id } = await params;
 
     const vehicle = await prisma.vehicle.findUnique({
       where: {
         id,
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
     });
 
@@ -60,23 +56,20 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "edit_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const { id } = await params;
     const body = await request.json();
     const validated = vehicleUpdateSchema.parse(body);
 
-    // Provjeri da li vozilo postoji i pripada korisniku
+    // Provjeri da li vozilo postoji i pripada organizaciji
     const existingVehicle = await prisma.vehicle.findUnique({
       where: {
         id,
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
     });
 
@@ -141,21 +134,18 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "edit_vehicles");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const { id } = await params;
 
-    // Provjeri da li vozilo postoji i pripada korisniku
+    // Provjeri da li vozilo postoji i pripada organizaciji
     const existingVehicle = await prisma.vehicle.findUnique({
       where: {
         id,
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
     });
 

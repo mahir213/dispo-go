@@ -16,13 +16,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Dohvati sve korisnike koji imaju uključene notifikacije
+    // Dohvati sve korisnike koji imaju uključene notifikacije, zajedno sa vozilima iz njihove organizacije
     const users = await db.user.findMany({
       where: {
         emailNotificationsEnabled: true,
+        organizationId: { not: null },
       },
       include: {
-        vehicles: true,
+        organization: {
+          include: {
+            vehicles: true,
+          },
+        },
       },
     });
 
@@ -32,7 +37,10 @@ export async function GET(request: NextRequest) {
     console.log(`[CRON] Found ${users.length} users with notifications enabled`);
 
     for (const user of users) {
-      console.log(`[CRON] Checking user: ${user.email} (ID: ${user.id}), has ${user.vehicles.length} vehicles`);
+      if (!user.organization) continue;
+      
+      const vehicles = user.organization.vehicles;
+      console.log(`[CRON] Checking user: ${user.email} (ID: ${user.id}), has ${vehicles.length} vehicles in organization`);
       
       const expiringVehicles: Array<{
         name: string;
@@ -46,12 +54,10 @@ export async function GET(request: NextRequest) {
       const checkUntilDate = new Date();
       checkUntilDate.setDate(checkUntilDate.getDate() + user.notificationDaysBefore);
 
-      // Provjeri svako vozilo korisnika
-      for (const vehicle of user.vehicles) {
-        console.log(`[CRON]   - Vehicle: ${vehicle.name} (userId: ${vehicle.userId})`);
-        if (vehicle.userId !== user.id) {
-          console.error(`[CRON]   ⚠️ WARNING: Vehicle ${vehicle.name} has userId ${vehicle.userId} but checking for user ${user.id}`);
-        }
+      // Provjeri svako vozilo organizacije
+      for (const vehicle of vehicles) {
+        console.log(`[CRON]   - Vehicle: ${vehicle.name} (organizationId: ${vehicle.organizationId})`);
+        
         const datesToCheck = [
           {
             date: vehicle.sixMonthInspectionDate,

@@ -1,9 +1,8 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { z } from "zod";
 import { NoteType } from "@prisma/client";
+import { checkAuth, requirePermission } from "@/lib/api-auth";
 
 const noteSchema = z.object({
   content: z.string().min(1),
@@ -16,23 +15,20 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "edit_drivers");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const { id } = await params;
     const body = await request.json();
     const validated = noteSchema.parse(body);
 
-    // Provjeri da li vozač postoji i pripada korisniku
+    // Provjeri da li vozač postoji i pripada organizaciji
     const driver = await prisma.driver.findUnique({
       where: {
         id,
-        userId: session.user.id,
+        organizationId: authResult.user.organizationId,
       },
     });
 
@@ -76,24 +72,21 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await checkAuth();
+    const permissionError = requirePermission(authResult, "edit_drivers");
+    if (permissionError) return permissionError;
+    if (authResult instanceof NextResponse) return authResult;
 
     const { id } = await params;
     const { noteId } = await request.json();
 
-    // Provjeri da li bilješka postoji i pripada vozaču i korisniku
+    // Provjeri da li bilješka postoji i pripada vozaču i organizaciji
     const note = await prisma.driverNote.findFirst({
       where: {
         id: noteId,
         driver: {
           id,
-          userId: session.user.id,
+          organizationId: authResult.user.organizationId,
         },
       },
     });

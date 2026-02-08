@@ -2,15 +2,11 @@ import {
   VehiclesList,
   VehiclesContainer,
   VehiclesLoading,
-  VehiclesError,
   VehiclesHeader,
 } from "@/components/vehicles";
-import { requireAuth } from "@/lib/auth-utils";
 import { Suspense } from "react";
 
-const Page = async () => {
-  await requireAuth();
-
+const Page = () => {
   return (
     <VehiclesContainer>
       <VehiclesHeader />
