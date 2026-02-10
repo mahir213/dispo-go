@@ -429,14 +429,14 @@ function TourTable({
   }
 
   // Grid columns: Tip | Kompanija | Kamion | Prikolica | Vozač | Utovar | Istovar | Carine | Cijena | ADR | Završi | Akcije
-  const gridCols = "grid-cols-[60px_1fr_120px_120px_130px_1fr_1fr_140px_90px_60px_90px_48px]";
+  const gridCols = "grid-cols-[70px_180px_120px_120px_140px_minmax(200px,1fr)_minmax(200px,1fr)_140px_110px_70px_100px_50px]";
 
   return (
     <>
       {/* Table Wrapper with Horizontal Scroll */}
       <div className="overflow-x-auto">
         {/* Table Header */}
-        <div className={`grid ${gridCols} gap-4 px-4 py-3 bg-muted/50 border-y text-xs font-medium text-muted-foreground min-w-max`}>
+        <div className={`grid ${gridCols} gap-3 px-4 py-3 bg-muted/50 border-y text-xs font-medium text-muted-foreground min-w-max`}>
         <div className="flex items-center justify-center">Tip</div>
         <div className="flex items-center">Kompanija</div>
         <div className="flex items-center justify-center">Kamion</div>
@@ -522,7 +522,7 @@ function TourRow({
   };
 
   return (
-    <div className={`grid ${gridCols} gap-4 px-4 py-3 hover:bg-muted/30 transition-colors items-center min-w-max`}>
+    <div className={`grid ${gridCols} gap-3 px-4 py-3 hover:bg-muted/30 transition-colors items-center min-w-max`}>
       {/* Tip */}
       <div className="flex items-center justify-center">
         <Badge 
@@ -534,7 +534,7 @@ function TourRow({
       </div>
 
       {/* Kompanija */}
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center gap-1.5 min-w-0">
         <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="font-medium text-sm truncate">{tour.company}</span>
       </div>
