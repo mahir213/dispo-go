@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -38,10 +37,13 @@ const driverSchema = z.object({
 
 type DriverFormValues = z.infer<typeof driverSchema>;
 
-export function AddDriverDialog() {
+interface AddDriverDialogProps {
+  onSuccess?: () => void;
+}
+
+export function AddDriverDialog({ onSuccess }: AddDriverDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
 
   const form = useForm<DriverFormValues>({
     resolver: zodResolver(driverSchema),
@@ -86,7 +88,7 @@ export function AddDriverDialog() {
       toast.success("Vozač uspješno dodat");
       setOpen(false);
       form.reset();
-      router.refresh();
+      onSuccess?.();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Greška pri dodavanju vozača"

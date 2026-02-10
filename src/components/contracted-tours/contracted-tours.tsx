@@ -153,7 +153,7 @@ export function ContractedToursList() {
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
-            placeholder="Pretraži ture..."
+            placeholder="Pretraži po kompaniji, lokaciji..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -469,12 +469,20 @@ function TourRow({
 
       {/* Carine */}
       <div className="flex flex-col items-center justify-center gap-0.5 text-xs text-muted-foreground">
-        <div className="truncate" title={`Izv: ${tour.exportCustoms || '-'}`}>
-          Izv: {tour.exportCustoms || '-'}
-        </div>
-        <div className="truncate" title={`Uv: ${tour.importCustoms || '-'}`}>
-          Uv: {tour.importCustoms || '-'}
-        </div>
+        {tour.exportCustoms ? (
+          <div title={`Izvozna: ${tour.exportCustoms}`}>
+            {`Izv: ${tour.exportCustoms.length > 15 ? tour.exportCustoms.substring(0, 15) + "..." : tour.exportCustoms}`}
+          </div>
+        ) : (
+          <div>Izv: -</div>
+        )}
+        {tour.importCustoms ? (
+          <div title={`Uvozna: ${tour.importCustoms}`}>
+            {`Uv: ${tour.importCustoms.length > 15 ? tour.importCustoms.substring(0, 15) + "..." : tour.importCustoms}`}
+          </div>
+        ) : (
+          <div>Uv: -</div>
+        )}
       </div>
 
       {/* Cijena */}

@@ -202,7 +202,7 @@ export function ActiveToursList() {
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
-            placeholder="Pretraži aktivne ture..."
+            placeholder="Pretraži po vozaču, tablicama, lokaciji..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -429,12 +429,14 @@ function TourTable({
   }
 
   // Grid columns: Tip | Kompanija | Kamion | Prikolica | Vozač | Utovar | Istovar | Carine | Cijena | ADR | Završi | Akcije
-  const gridCols = "grid-cols-[60px_1fr_130px_130px_140px_1fr_1fr_90px_80px_60px_90px_48px]";
+  const gridCols = "grid-cols-[60px_1fr_120px_120px_130px_1fr_1fr_140px_90px_60px_90px_48px]";
 
   return (
     <>
-      {/* Table Header */}
-      <div className={`grid ${gridCols} gap-4 px-4 py-3 bg-muted/50 border-y text-xs font-medium text-muted-foreground`}>
+      {/* Table Wrapper with Horizontal Scroll */}
+      <div className="overflow-x-auto">
+        {/* Table Header */}
+        <div className={`grid ${gridCols} gap-4 px-4 py-3 bg-muted/50 border-y text-xs font-medium text-muted-foreground min-w-max`}>
         <div className="flex items-center justify-center">Tip</div>
         <div className="flex items-center">Kompanija</div>
         <div className="flex items-center justify-center">Kamion</div>
@@ -457,10 +459,11 @@ function TourTable({
       </div>
 
       {/* Table Body */}
-      <div className="divide-y">
+      <div className="divide-y min-w-max">
         {tours.map((tour) => (
           <TourRow key={tour.id} tour={tour} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} gridCols={gridCols} />
         ))}
+      </div>
       </div>
 
       {/* Pagination */}
@@ -519,7 +522,7 @@ function TourRow({
   };
 
   return (
-    <div className={`grid ${gridCols} gap-4 px-4 py-3 hover:bg-muted/30 transition-colors items-center`}>
+    <div className={`grid ${gridCols} gap-4 px-4 py-3 hover:bg-muted/30 transition-colors items-center min-w-max`}>
       {/* Tip */}
       <div className="flex items-center justify-center">
         <Badge 
@@ -589,12 +592,22 @@ function TourRow({
 
       {/* Carine */}
       <div className="flex flex-col items-center justify-center gap-0.5 text-xs text-muted-foreground">
-        <div className="truncate" title={`Izv: ${tour.exportCustoms || '-'}`}>
-          Izv: {tour.exportCustoms || '-'}
-        </div>
-        <div className="truncate" title={`Uv: ${tour.importCustoms || '-'}`}>
-          Uv: {tour.importCustoms || '-'}
-        </div>
+        {tour.exportCustoms && (
+          <div title={`Izvozna: ${tour.exportCustoms}`}>
+            {`Izv: ${tour.exportCustoms.length > 15 ? tour.exportCustoms.substring(0, 15) + "..." : tour.exportCustoms}`}
+          </div>
+        )}
+        {!tour.exportCustoms && tour.importCustoms && (
+          <div className="text-xs text-muted-foreground">-</div>
+        )}
+        {tour.importCustoms && (
+          <div title={`Uvozna: ${tour.importCustoms}`}>
+            {`Uv: ${tour.importCustoms.length > 15 ? tour.importCustoms.substring(0, 15) + "..." : tour.importCustoms}`}
+          </div>
+        )}
+        {!tour.exportCustoms && !tour.importCustoms && (
+          <div className="text-xs text-muted-foreground">-</div>
+        )}
       </div>
 
       {/* Cijena */}

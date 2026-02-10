@@ -293,7 +293,7 @@ export function AddContractedTourDialog() {
                   <FormItem>
                     <FormLabel>Izvozna carina</FormLabel>
                     <FormControl>
-                      <Input placeholder="Unesite izvoznu carinu" {...field} />
+                      <Input placeholder="Unesite izvoznu carinu" maxLength={100} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -307,7 +307,7 @@ export function AddContractedTourDialog() {
                   <FormItem>
                     <FormLabel>Uvozna carina</FormLabel>
                     <FormControl>
-                      <Input placeholder="Unesite uvoznu carinu" {...field} />
+                      <Input placeholder="Unesite uvoznu carinu" maxLength={100} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

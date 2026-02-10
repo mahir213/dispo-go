@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -47,10 +46,13 @@ const vehicleSchema = z.object({
 
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
 
-export function AddVehicleDialog() {
+interface AddVehicleDialogProps {
+  onSuccess?: () => void;
+}
+
+export function AddVehicleDialog({ onSuccess }: AddVehicleDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
 
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
@@ -94,7 +96,7 @@ export function AddVehicleDialog() {
       toast.success("Vozilo uspješno dodato");
       setOpen(false);
       form.reset();
-      router.refresh();
+      onSuccess?.();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Greška pri dodavanju vozila"

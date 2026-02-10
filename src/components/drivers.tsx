@@ -2,9 +2,8 @@
 
 import { formatDistanceToNow } from "date-fns";
 import { bsLocale } from "@/lib/locale";
-import { UserIcon, CalendarIcon, PlusIcon, AlertCircle, ChevronRight, SearchIcon } from "lucide-react";
+import { UserIcon, CalendarIcon, AlertCircle, ChevronRight, SearchIcon } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { AddDriverDialog } from "@/components/add-driver-dialog";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
@@ -42,6 +41,9 @@ export function DriversList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const triggerRefresh = () => setRefreshKey((prev) => prev + 1);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -79,18 +81,36 @@ export function DriversList() {
         setLoading(false);
         setIsSearching(false);
       });
-  }, [currentPage, debouncedSearchQuery]);
+  }, [currentPage, debouncedSearchQuery, refreshKey]);
 
   if (loading) {
     return <DriversLoading />;
   }
 
-  if (drivers.length === 0 && !debouncedSearchQuery) {
-    return <DriversEmpty />;
-  }
+  const isEmpty = drivers.length === 0 && !debouncedSearchQuery;
 
   return (
     <div className="flex flex-col w-full max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between px-8 py-6 border-b w-full">
+        <div>
+          <h1 className="text-2xl font-bold">Vozači</h1>
+        </div>
+        <AddDriverDialog onSuccess={triggerRefresh} />
+      </div>
+
+      {isEmpty ? (
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+          <UserIcon className="h-16 w-16 text-muted-foreground" />
+          <div className="text-center">
+            <h3 className="text-lg font-semibold">Nema vozača</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Započnite dodavanjem prvog vozača
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* Search Bar */}
       <div className="px-8 py-4 border-b">
         <div className="relative max-w-md">
@@ -141,6 +161,8 @@ export function DriversList() {
           itemsPerPage={ITEMS_PER_PAGE}
           onPageChange={setCurrentPage}
         />
+      )}
+        </>
       )}
     </div>
   );
@@ -225,31 +247,6 @@ function DriverRow({ data }: { data: Driver }) {
         </div>
       </div>
     </Link>
-  );
-}
-
-function DriversEmpty() {
-  return (
-    <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-      <UserIcon className="h-16 w-16 text-muted-foreground" />
-      <div className="text-center">
-        <h3 className="text-lg font-semibold">Nema vozača</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          Započnite dodavanjem prvog vozača
-        </p>
-      </div>
-    </div>
-  );
-}
-
-export function DriversHeader() {
-  return (
-    <div className="flex items-center justify-between max-w-7xl mx-auto px-8 py-6 border-b w-full">
-      <div>
-        <h1 className="text-2xl font-bold">Vozači</h1>
-      </div>
-      <AddDriverDialog />
-    </div>
   );
 }
 

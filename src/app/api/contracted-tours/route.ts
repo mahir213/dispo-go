@@ -102,6 +102,18 @@ export async function GET(request: Request) {
         { loadingLocation: { contains: search, mode: "insensitive" } },
         { exportCustoms: { contains: search, mode: "insensitive" } },
         { importCustoms: { contains: search, mode: "insensitive" } },
+        { driver: { name: { contains: search, mode: "insensitive" } } },
+        { truck: { registrationNumber: { contains: search, mode: "insensitive" } } },
+        { truck: { name: { contains: search, mode: "insensitive" } } },
+        { trailer: { registrationNumber: { contains: search, mode: "insensitive" } } },
+        { trailer: { name: { contains: search, mode: "insensitive" } } },
+        { 
+          unloadingStops: { 
+            some: { 
+              location: { contains: search, mode: "insensitive" } 
+            } 
+          } 
+        },
       ];
     }
 
