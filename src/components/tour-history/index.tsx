@@ -175,7 +175,7 @@ export function TourHistory() {
   const fakturisaneTours = tours.filter((t) => t.isInvoiced);
 
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex flex-col w-full -ml-12">
       {/* Search Bar */}
       <div className="px-8 py-4 border-b">
         <div className="relative max-w-md">
@@ -303,7 +303,7 @@ function TourTable({
   return (
     <>
       {/* Table Header */}
-      <div className={`grid ${gridCols} gap-3 px-4 py-3 bg-muted/50 border-y text-xs font-medium text-muted-foreground`}>
+      <div className={`grid ${gridCols} gap-2.5 px-3 py-3 bg-muted/50 border-y text-xs font-medium text-muted-foreground`}>
         <div className="flex items-center justify-center">Tip</div>
         <div className="flex items-center">Kompanija</div>
         <div className="flex items-center justify-center">Kamion</div>
@@ -386,8 +386,13 @@ function TourRow({
     return format(new Date(dateString), "dd.MM.yy", { locale: bsLocale });
   };
 
+  const truncateText = (text: string, maxLength: number = 15) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + "...";
+  };
+
   return (
-    <div className={`grid ${gridCols} gap-3 px-4 py-3 hover:bg-muted/30 transition-colors items-center`}>
+    <div className={`grid ${gridCols} gap-2.5 px-3 py-3 hover:bg-muted/30 transition-colors items-center`}>
       {/* Tip */}
       <div className="flex items-center justify-center">
         <Badge 
@@ -401,7 +406,7 @@ function TourRow({
       {/* Kompanija */}
       <div className="flex items-center gap-1.5 min-w-0">
         <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="font-medium text-sm truncate">{tour.company}</span>
+        <span className="font-medium text-sm truncate" title={tour.company}>{truncateText(tour.company)}</span>
       </div>
 
       {/* Kamion */}
@@ -445,7 +450,7 @@ function TourRow({
         <div className="flex items-center gap-1.5 text-sm">
           <MapPin className="h-3.5 w-3.5 text-green-600 shrink-0" />
           <span className="truncate" title={tour.loadingLocation}>
-            {tour.loadingLocation}
+            {truncateText(tour.loadingLocation)}
           </span>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -462,7 +467,7 @@ function TourRow({
               <div className="flex items-center gap-1.5 text-sm">
                 <MapPin className="h-3.5 w-3.5 text-red-600 shrink-0" />
                 <span className="truncate" title={stop.location}>
-                  {stop.location}
+                  {truncateText(stop.location)}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

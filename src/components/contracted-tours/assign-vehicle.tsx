@@ -114,14 +114,16 @@ export function AssignVehicle({ tourId, vehicleType, currentVehicle, onAssigned 
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 text-xs font-normal px-2"
+            className="h-8 gap-1.5 text-xs font-normal px-2 relative group"
           >
             <Icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="whitespace-nowrap">{currentVehicle.registrationNumber}</span>
-            <X
-              className="h-3 w-3 shrink-0 hover:text-destructive ml-1"
+            <span className="whitespace-nowrap group-hover:hidden">{currentVehicle.registrationNumber}</span>
+            <button
+              className="hidden group-hover:flex items-center gap-1 text-destructive hover:text-destructive/80 absolute inset-0 justify-center"
               onClick={handleRemove}
-            />
+            >
+              <X className="h-3.5 w-3.5 shrink-0" />
+            </button>
           </Button>
         ) : (
           <Button
