@@ -52,40 +52,9 @@ export async function PUT(
         data: {
           isCompleted: true,
           completedAt: new Date(),
+          // Keep resources for history - validation checks isCompleted: false
         },
       });
-
-      // Check if all child tours of the same parent are now completed
-      const parentTour = await prisma.contractedTour.findUnique({
-        where: { id: existingTour.parentTourId },
-        include: {
-          childTours: true,
-        },
-      });
-
-      if (parentTour && parentTour.isCompleted) {
-        const allChildrenCompleted = parentTour.childTours.every(
-          (child) => child.isCompleted
-        );
-
-        // If parent and all children are completed, free up resources from all tours
-        if (allChildrenCompleted) {
-          await prisma.contractedTour.updateMany({
-            where: {
-              OR: [
-                { id: parentTour.id },
-                { parentTourId: parentTour.id },
-              ],
-              organizationId: authResult.user.organizationId,
-            },
-            data: {
-              driverId: null,
-              truckId: null,
-              trailerId: null,
-            },
-          });
-        }
-      }
     } else {
       // Check if this tour has children (is a parent tour)
       const childTours = await prisma.contractedTour.findMany({
@@ -96,7 +65,7 @@ export async function PUT(
       });
 
       if (childTours.length > 0) {
-        // Complete parent and all child tours, then free resources
+        // Complete parent and all child tours, keep resources for history
         await prisma.contractedTour.updateMany({
           where: {
             OR: [
@@ -108,10 +77,8 @@ export async function PUT(
           data: {
             isCompleted: true,
             completedAt: new Date(),
-            // Free resources from all tours in the group
-            driverId: null,
-            truckId: null,
-            trailerId: null,
+            // Keep driverId, truckId, trailerId for history
+            // Validation in assign endpoints checks isCompleted: false
           },
         });
       } else {
@@ -121,6 +88,7 @@ export async function PUT(
           data: {
             isCompleted: true,
             completedAt: new Date(),
+            // Keep resources for history
           },
         });
       }
