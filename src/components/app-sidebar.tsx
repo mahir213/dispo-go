@@ -11,6 +11,7 @@ import {
     History,
     CalendarDays,
     Shield,
+    BarChart3,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
@@ -88,6 +89,12 @@ const allMenuItems: MenuGroup[] = [
                 title: "Historija",
                 icon: History,
                 url: "/historija",
+                permission: "view_tours",
+            },
+            {
+                title: "Statistika",
+                icon: BarChart3,
+                url: "/statistika",
                 permission: "view_tours",
             },
         ],
