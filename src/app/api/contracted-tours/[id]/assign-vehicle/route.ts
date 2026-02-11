@@ -39,7 +39,8 @@ export async function PUT(
     }
 
     // Check if truck is already assigned to another active tour (not completed)
-    if (truckId) {
+    // Skip this check if the current tour is already completed (history)
+    if (truckId && !existingTour.isCompleted) {
       const truckInUse = await prisma.contractedTour.findFirst({
         where: {
           truckId: truckId,
@@ -59,7 +60,8 @@ export async function PUT(
     }
 
     // Check if trailer is already assigned to another active tour (not completed)
-    if (trailerId) {
+    // Skip this check if the current tour is already completed (history)
+    if (trailerId && !existingTour.isCompleted) {
       const trailerInUse = await prisma.contractedTour.findFirst({
         where: {
           trailerId: trailerId,

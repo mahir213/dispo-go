@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Moon, Sun, Monitor } from "lucide-react";
 import { toast } from "sonner";
+import { useTheme } from "@/components/theme-provider";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -53,6 +54,7 @@ interface SettingsFormProps {
 export function SettingsForm({ user }: SettingsFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
@@ -91,6 +93,56 @@ export function SettingsForm({ user }: SettingsFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Tema */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Izgled</CardTitle>
+            <CardDescription>
+              Prilagodite izgled prikaza aplikacije
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tema</label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={theme === "light" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTheme("light")}
+                  className="flex-1"
+                >
+                  <Sun className="mr-2 h-4 w-4" />
+                  Svijetla
+                </Button>
+                <Button
+                  type="button"
+                  variant={theme === "dark" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTheme("dark")}
+                  className="flex-1"
+                >
+                  <Moon className="mr-2 h-4 w-4" />
+                  Tamna
+                </Button>
+                <Button
+                  type="button"
+                  variant={theme === "system" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTheme("system")}
+                  className="flex-1"
+                >
+                  <Monitor className="mr-2 h-4 w-4" />
+                  Sistem
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Izaberite temu koja vam najbolje odgovara
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Profil */}
         <Card>
           <CardHeader>

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import {
   History,
   SearchIcon,
-  Building2,
   MapPin,
   Euro,
   AlertTriangle,
@@ -36,6 +35,9 @@ import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { bsLocale } from "@/lib/locale";
 import { toast } from "sonner";
+import { AssignVehicleHistory } from "./assign-vehicle-history";
+import { AssignDriverHistory } from "./assign-driver-history";
+import { EditCompanyInline } from "./edit-company-inline";
 
 type UnloadingStop = {
   id: string;
@@ -538,44 +540,40 @@ function TourRow({
 
       {/* Kompanija */}
       <div className="flex items-center gap-1.5 min-w-0">
-        <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="font-medium text-sm truncate" title={tour.company}>{truncateText(tour.company)}</span>
+        <EditCompanyInline
+          tourId={tour.id}
+          currentCompany={tour.company}
+          onUpdated={() => {}}
+        />
       </div>
 
       {/* Kamion */}
       <div className="flex items-center justify-start">
-        {tour.truck ? (
-          <div className="flex items-center gap-1.5 text-xs">
-            <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{tour.truck.registrationNumber}</span>
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground">-</span>
-        )}
+        <AssignVehicleHistory
+          tourId={tour.id}
+          vehicleType="KAMION"
+          currentVehicle={tour.truck}
+          onAssigned={() => {}}
+        />
       </div>
 
       {/* Prikolica */}
       <div className="flex items-center justify-start">
-        {tour.trailer ? (
-          <div className="flex items-center gap-1.5 text-xs">
-            <Container className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{tour.trailer.registrationNumber}</span>
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground">-</span>
-        )}
+        <AssignVehicleHistory
+          tourId={tour.id}
+          vehicleType="PRIKOLICA"
+          currentVehicle={tour.trailer}
+          onAssigned={() => {}}
+        />
       </div>
 
       {/* Vozač */}
       <div className="flex items-center justify-start">
-        {tour.driver ? (
-          <div className="flex items-center gap-1.5 text-xs bg-muted px-2 py-1 rounded">
-            <User className="h-3.5 w-3.5" />
-            <span className="truncate max-w-[100px]">{tour.driver.name}</span>
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground">-</span>
-        )}
+        <AssignDriverHistory
+          tourId={tour.id}
+          currentDriver={tour.driver}
+          onAssigned={() => {}}
+        />
       </div>
 
       {/* Utovar */}

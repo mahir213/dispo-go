@@ -47,20 +47,23 @@ export async function PUT(
       }
 
       // Check if driver is already assigned to another active tour (not completed)
-      const existingActiveTour = await prisma.contractedTour.findFirst({
-        where: {
-          driverId: validated.driverId,
-          organizationId: authResult.user.organizationId,
-          id: { not: id }, // Exclude current tour
-          isCompleted: false, // Only check non-completed tours
-        },
-      });
+      // Skip this check if the current tour is already completed (history)
+      if (!existingTour.isCompleted) {
+        const existingActiveTour = await prisma.contractedTour.findFirst({
+          where: {
+            driverId: validated.driverId,
+            organizationId: authResult.user.organizationId,
+            id: { not: id }, // Exclude current tour
+            isCompleted: false, // Only check non-completed tours
+          },
+        });
 
-      if (existingActiveTour) {
-        return NextResponse.json(
-          { message: `Vozač ${driver.name} je već dodijeljen drugoj aktivnoj turi` },
-          { status: 400 }
-        );
+        if (existingActiveTour) {
+          return NextResponse.json(
+            { message: `Vozač ${driver.name} je već dodijeljen drugoj aktivnoj turi` },
+            { status: 400 }
+          );
+        }
       }
     }
 
