@@ -114,19 +114,19 @@ export function AssignVehicle({ tourId, vehicleType, currentVehicle, onAssigned 
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 text-xs font-normal px-2 relative group"
+            className="h-8 gap-1.5 text-xs font-normal px-2 relative group overflow-hidden"
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="whitespace-nowrap group-hover:hidden">{currentVehicle.registrationNumber}</span>
-            <span
-              className="hidden group-hover:flex items-center gap-1 text-destructive hover:text-destructive/80 absolute inset-0 justify-center cursor-pointer"
+            <Icon className="h-3.5 w-3.5 shrink-0 group-hover:opacity-0 transition-opacity" />
+            <span className="whitespace-nowrap group-hover:opacity-0 transition-opacity">{currentVehicle.registrationNumber}</span>
+            <div
+              className="absolute inset-0 flex items-center justify-center bg-background opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={(e) => {
                 e.stopPropagation();
                 handleRemove(e);
               }}
             >
-              <X className="h-3.5 w-3.5 shrink-0" />
-            </span>
+              <X className="h-3.5 w-3.5 shrink-0 text-destructive" />
+            </div>
           </Button>
         ) : (
           <Button

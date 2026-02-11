@@ -16,6 +16,8 @@ import {
   FileCheck,
   CheckCircle,
   Edit2,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -431,9 +433,9 @@ function TourTable({
       <div className={`grid ${gridCols} gap-2.5 px-3 py-3 bg-muted/50 border-y text-xs font-medium text-muted-foreground`}>
         <div className="flex items-center justify-center">Tip</div>
         <div className="flex items-center">Kompanija</div>
-        <div className="flex items-center justify-center">Kamion</div>
-        <div className="flex items-center justify-center">Prikolica</div>
-        <div className="flex items-center justify-center">Vozač</div>
+        <div className="flex items-center justify-start">Kamion</div>
+        <div className="flex items-center justify-start">Prikolica</div>
+        <div className="flex items-center justify-start">Vozač</div>
         <div className="flex items-center">Utovar</div>
         <div className="flex items-center">Istovar</div>
         <div className="flex items-center justify-center">Cijena</div>
@@ -484,6 +486,8 @@ function TourRow({
   onUnmarkAsInvoiced?: (id: string) => void;
   onUpdateInvoiceNumber?: (id: string, currentInvoiceNumber?: string | null) => void;
 }) {
+  const [isUnloadingExpanded, setIsUnloadingExpanded] = useState(false);
+  const hasMultipleUnloadings = tour.unloadingStops && tour.unloadingStops.length > 1;
   const getTourTypeLabel = (type: string) => {
     switch (type) {
       case "UVOZ":
@@ -539,7 +543,7 @@ function TourRow({
       </div>
 
       {/* Kamion */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-start">
         {tour.truck ? (
           <div className="flex items-center gap-1.5 text-xs">
             <Truck className="h-3.5 w-3.5 text-muted-foreground" />
@@ -551,7 +555,7 @@ function TourRow({
       </div>
 
       {/* Prikolica */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-start">
         {tour.trailer ? (
           <div className="flex items-center gap-1.5 text-xs">
             <Container className="h-3.5 w-3.5 text-muted-foreground" />
@@ -563,7 +567,7 @@ function TourRow({
       </div>
 
       {/* Vozač */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-start">
         {tour.driver ? (
           <div className="flex items-center gap-1.5 text-xs bg-muted px-2 py-1 rounded">
             <User className="h-3.5 w-3.5" />
@@ -591,20 +595,42 @@ function TourRow({
       {/* Istovar */}
       <div className="flex flex-col justify-center gap-1 min-w-0">
         {tour.unloadingStops && tour.unloadingStops.length > 0 ? (
-          tour.unloadingStops.map((stop, idx) => (
-            <div key={stop.id || idx} className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-1.5 text-sm">
-                <MapPin className="h-3.5 w-3.5 text-red-600 shrink-0" />
-                <span className="truncate" title={stop.location}>
-                  {truncateText(stop.location)}
-                </span>
+          <>
+            {/* Prikaži samo prvi istovar ako ih ima više i nisu expanded */}
+            {(!hasMultipleUnloadings || isUnloadingExpanded ? tour.unloadingStops : [tour.unloadingStops[0]]).map((stop, idx) => (
+              <div key={stop.id || idx} className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-1.5 text-sm">
+                  <MapPin className="h-3.5 w-3.5 text-red-600 shrink-0" />
+                  <span className="truncate" title={stop.location}>
+                    {truncateText(stop.location)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                  <CalendarDays className="h-3 w-3 shrink-0" />
+                  <span>{formatDate(stop.unloadingDate)}</span>
+                  {hasMultipleUnloadings && idx === 0 && (
+                    <button
+                      onClick={() => setIsUnloadingExpanded(!isUnloadingExpanded)}
+                      className="flex items-center gap-0.5 text-primary hover:text-primary/80 transition-colors ml-1"
+                      title={isUnloadingExpanded ? "Prikaži manje" : "Prikaži sve istovare"}
+                    >
+                      {isUnloadingExpanded ? (
+                        <>
+                          <ChevronDown className="h-3 w-3" />
+                          <span>Manje</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronRight className="h-3 w-3" />
+                          <span>+{tour.unloadingStops.length - 1}</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <CalendarDays className="h-3 w-3 shrink-0" />
-                <span>{formatDate(stop.unloadingDate)}</span>
-              </div>
-            </div>
-          ))
+            ))}
+          </>
         ) : (
           <span className="text-sm text-muted-foreground">-</span>
         )}

@@ -147,21 +147,21 @@ export function AssignDriver({ tourId, currentDriver, onAssigned }: AssignDriver
   if (currentDriver) {
     return (
       <button
-        className="group relative flex items-center gap-1.5 text-sm bg-green-100 text-green-800 px-2.5 py-1.5 rounded-md hover:bg-green-200 transition-colors cursor-pointer"
+        className="group relative flex items-center gap-1.5 text-sm bg-green-100 text-green-800 px-2.5 py-1.5 rounded-md transition-colors cursor-pointer overflow-hidden"
         onClick={handleRemoveDriver}
         disabled={assigning}
       >
-        <User className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate max-w-[100px] group-hover:hidden" title={currentDriver.name}>
+        <User className="h-3.5 w-3.5 shrink-0 group-hover:opacity-0 transition-opacity" />
+        <span className="truncate max-w-[100px] group-hover:opacity-0 transition-opacity" title={currentDriver.name}>
           {currentDriver.name}
         </span>
-        <span className="hidden group-hover:flex items-center gap-1 text-destructive absolute inset-0 justify-center">
+        <div className="absolute inset-0 flex items-center justify-center bg-green-100 opacity-0 group-hover:opacity-100 transition-opacity">
           {assigning ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-destructive" />
           ) : (
-            <X className="h-3.5 w-3.5" />
+            <X className="h-3.5 w-3.5 text-destructive" />
           )}
-        </span>
+        </div>
       </button>
     );
   }

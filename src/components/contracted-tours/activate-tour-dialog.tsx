@@ -93,13 +93,28 @@ export function ActivateTourDialog({ tourId, tourName, open, onOpenChange }: Act
       ])
         .then(([driversData, vehiclesData, toursData]) => {
           setDrivers(driversData.drivers || driversData);
-          const vehicles = vehiclesData.vehicles || vehiclesData;
-          setTrucks(vehicles.filter((v: Vehicle) => v.vehicleType === "KAMION"));
-          setTrailers(vehicles.filter((v: Vehicle) => v.vehicleType === "PRIKOLICA"));
           
-          // Filter only active tours (with driver assigned) and not the current tour
-          const active = (toursData.tours || []).filter((t: any) => t.driverId && t.id !== tourId);
+          const allVehicles = vehiclesData.vehicles || vehiclesData;
+          const allTours = toursData.tours || [];
+          
+          // Filter only active tours (with driver assigned), not the current tour, and only root tours (no parentTourId)
+          const active = allTours.filter((t: any) => t.driverId && t.id !== tourId && !t.parentTourId);
           setActiveTours(active);
+          
+          // Get IDs of vehicles that are already assigned to active tours (excluding current tour)
+          const usedTruckIds = new Set(allTours.filter((t: any) => t.driverId && t.truckId && t.id !== tourId).map((t: any) => t.truckId));
+          const usedTrailerIds = new Set(allTours.filter((t: any) => t.driverId && t.trailerId && t.id !== tourId).map((t: any) => t.trailerId));
+          
+          // Filter out vehicles that are already in use
+          const availableTrucks = allVehicles.filter((v: Vehicle) => 
+            v.vehicleType === "KAMION" && !usedTruckIds.has(v.id)
+          );
+          const availableTrailers = allVehicles.filter((v: Vehicle) => 
+            v.vehicleType === "PRIKOLICA" && !usedTrailerIds.has(v.id)
+          );
+          
+          setTrucks(availableTrucks);
+          setTrailers(availableTrailers);
           
           setLoading(false);
         })

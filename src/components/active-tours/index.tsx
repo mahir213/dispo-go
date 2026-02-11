@@ -252,6 +252,8 @@ export function ActiveToursList() {
 
         <TabsContent value="sve" className="mt-0">
           <TourTable
+            key="sve"
+            activeTab={activeTab}
             tours={sortedTours}
             onEdit={setEditTour}
             onDelete={setDeleteTour}
@@ -268,6 +270,8 @@ export function ActiveToursList() {
 
         <TabsContent value="uvoz" className="mt-0">
           <TourTable
+            key="uvoz"
+            activeTab={activeTab}
             tours={uvozTours}
             onEdit={setEditTour}
             onDelete={setDeleteTour}
@@ -284,6 +288,8 @@ export function ActiveToursList() {
 
         <TabsContent value="izvoz" className="mt-0">
           <TourTable
+            key="izvoz"
+            activeTab={activeTab}
             tours={izvozTours}
             onEdit={setEditTour}
             onDelete={setDeleteTour}
@@ -300,38 +306,8 @@ export function ActiveToursList() {
 
         <TabsContent value="medjutura" className="mt-0">
           <TourTable
-            tours={medjuturaTours}
-            onEdit={setEditTour}
-            onDelete={setDeleteTour}
-            onComplete={handleCompleteTour}
-            searchQuery={searchQuery}
-            sortOrder={sortOrder}
-            onSortChange={setSortOrder}
-            currentPage={currentPage}
-            totalItems={totalItems}
-            itemsPerPage={ITEMS_PER_PAGE}
-            onPageChange={setCurrentPage}
-          />
-        </TabsContent>
-
-        <TabsContent value="izvoz" className="mt-0">
-          <TourTable
-            tours={izvozTours}
-            onEdit={setEditTour}
-            onDelete={setDeleteTour}
-            onComplete={handleCompleteTour}
-            searchQuery={searchQuery}
-            sortOrder={sortOrder}
-            onSortChange={setSortOrder}
-            currentPage={currentPage}
-            totalItems={totalItems}
-            itemsPerPage={ITEMS_PER_PAGE}
-            onPageChange={setCurrentPage}
-          />
-        </TabsContent>
-
-        <TabsContent value="medjutura" className="mt-0">
-          <TourTable
+            key="medjutura"
+            activeTab={activeTab}
             tours={medjuturaTours}
             onEdit={setEditTour}
             onDelete={setDeleteTour}
@@ -399,6 +375,7 @@ function PriceCell({ price }: { price: number | string }) {
 }
 
 function TourTable({
+  activeTab,
   tours,
   onEdit,
   onDelete,
@@ -411,6 +388,7 @@ function TourTable({
   itemsPerPage,
   onPageChange,
 }: {
+  activeTab: string;
   tours: ActiveTour[];
   onEdit: (tour: ActiveTour) => void;
   onDelete: (tour: ActiveTour) => void;
@@ -453,9 +431,9 @@ function TourTable({
       <div className={`grid ${gridCols} gap-2.5 px-3 py-3 bg-muted/50 border-y text-xs font-medium text-muted-foreground`}>
         <div className="flex items-center justify-center">Tip</div>
         <div className="flex items-center">Kompanija</div>
-        <div className="flex items-center justify-center">Kamion</div>
-        <div className="flex items-center justify-center">Prikolica</div>
-        <div className="flex items-center justify-center">Vozač</div>
+        <div className="flex items-center justify-start">Kamion</div>
+        <div className="flex items-center justify-start">Prikolica</div>
+        <div className="flex items-center justify-start">Vozač</div>
         <div className="flex items-center">Utovar</div>
         <button 
           onClick={handleSortClick}
@@ -475,7 +453,7 @@ function TourTable({
       {/* Table Body */}
       <div className="divide-y">
         {tours.map((tour) => (
-          <TourRow key={tour.id} tour={tour} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} gridCols={gridCols} />
+          <TourRow key={`${activeTab}-${tour.id}`} activeTab={activeTab} tour={tour} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} gridCols={gridCols} />
         ))}
       </div>
 
@@ -491,12 +469,14 @@ function TourTable({
 }
 
 function TourRow({
+  activeTab,
   tour,
   onEdit,
   onDelete,
   onComplete,
   gridCols,
 }: {
+  activeTab: string;
   tour: ActiveTour;
   onEdit: (tour: ActiveTour) => void;
   onDelete: (tour: ActiveTour) => void;
@@ -504,7 +484,9 @@ function TourRow({
   gridCols: string;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isUnloadingExpanded, setIsUnloadingExpanded] = useState(false);
   const hasChildren = tour.childTours && tour.childTours.length > 0;
+  const hasMultipleUnloadings = tour.unloadingStops && tour.unloadingStops.length > 1;
   
   const getTourTypeLabel = (type: string) => {
     switch (type) {
@@ -566,7 +548,7 @@ function TourRow({
         >
           {getTourTypeLabel(tour.tourType)}
           {hasChildren && (
-            <span className="ml-1 text-[10px] bg-primary text-primary-foreground px-1 rounded-full">
+            <span className="ml-0.5 text-[9px] bg-primary text-primary-foreground px-0.5 rounded">
               +{tour.childTours!.length}
             </span>
           )}
@@ -580,17 +562,17 @@ function TourRow({
       </div>
 
       {/* Kamion */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-start">
         <AssignVehicle tourId={tour.id} vehicleType="KAMION" currentVehicle={tour.truck} />
       </div>
 
       {/* Prikolica */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-start">
         <AssignVehicle tourId={tour.id} vehicleType="PRIKOLICA" currentVehicle={tour.trailer} />
       </div>
 
       {/* Vozač */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-start">
         <AssignDriver tourId={tour.id} currentDriver={tour.driver} />
       </div>
 
@@ -611,20 +593,43 @@ function TourRow({
       {/* Istovar */}
       <div className="flex flex-col justify-center gap-1 min-w-0">
         {tour.unloadingStops && tour.unloadingStops.length > 0 ? (
-          tour.unloadingStops.map((stop, idx) => (
-            <div key={stop.id || idx} className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-1.5 text-sm">
-                <MapPin className="h-3.5 w-3.5 text-red-600 shrink-0" />
-                <span className="truncate" title={stop.location}>
-                  {truncateText(stop.location)}
-                </span>
+          <>
+            {/* Prikaži samo prvi istovar ako ih ima više i nisu expanded */}
+            {(!hasMultipleUnloadings || isUnloadingExpanded ? tour.unloadingStops : [tour.unloadingStops[0]]).map((stop, idx) => (
+              <div key={stop.id || idx} className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-1.5 text-sm">
+                  <MapPin className="h-3.5 w-3.5 text-red-600 shrink-0" />
+                  <span className="truncate" title={stop.location}>
+                    {truncateText(stop.location)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <CalendarDays className="h-3 w-3 shrink-0" />
+                  <span>{formatDate(stop.unloadingDate)}</span>
+                  {/* Dugme za expand/collapse ako ima više istovara - inline sa datumom */}
+                  {hasMultipleUnloadings && idx === 0 && (
+                    <button
+                      onClick={() => setIsUnloadingExpanded(!isUnloadingExpanded)}
+                      className="flex items-center gap-0.5 text-xs text-primary hover:text-primary/80 transition-colors ml-1"
+                      title={isUnloadingExpanded ? "Prikaži manje" : "Prikaži sve istovare"}
+                    >
+                      {isUnloadingExpanded ? (
+                        <>
+                          <ChevronDown className="h-3 w-3" />
+                          <span>Manje</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronRight className="h-3 w-3" />
+                          <span>+{tour.unloadingStops.length - 1}</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <CalendarDays className="h-3 w-3 shrink-0" />
-                <span>{formatDate(stop.unloadingDate)}</span>
-              </div>
-            </div>
-          ))
+            ))}
+          </>
         ) : (
           <span className="text-sm text-muted-foreground">-</span>
         )}
@@ -707,151 +712,213 @@ function TourRow({
     {hasChildren && isExpanded && (
       <div className="bg-accent/20 border-l-4 border-l-primary">
         {tour.childTours!.map((childTour) => (
-          <div key={childTour.id} className={`grid ${gridCols} gap-2.5 px-3 py-3 pl-12 hover:bg-muted/30 transition-colors items-center border-b border-dashed`}>
-            {/* Tip */}
-            <div className="flex items-center justify-center gap-1">
-              <Link2 className="h-3 w-3 text-muted-foreground" />
-              <Badge 
-                variant={getTourTypeBadgeVariant(childTour.tourType) as "default" | "secondary" | "outline"}
-                className="text-xs whitespace-nowrap"
-              >
-                {getTourTypeLabel(childTour.tourType)}
-              </Badge>
-            </div>
-
-            {/* Kompanija */}
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="font-medium text-sm truncate" title={childTour.company}>{truncateText(childTour.company)}</span>
-            </div>
-
-            {/* Kamion - inherited from parent */}
-            <div className="flex items-center justify-center" title="Isti kao parent tura">
-              <span className="text-muted-foreground font-mono">-||-</span>
-            </div>
-
-            {/* Prikolica - inherited from parent */}
-            <div className="flex items-center justify-center" title="Ista kao parent tura">
-              <span className="text-muted-foreground font-mono">-||-</span>
-            </div>
-
-            {/* Vozač - inherited from parent */}
-            <div className="flex items-center justify-center" title="Isti kao parent tura">
-              <span className="text-muted-foreground font-mono">-||-</span>
-            </div>
-
-            {/* Utovar */}
-            <div className="flex flex-col justify-center gap-0.5 min-w-0">
-              <div className="flex items-center gap-1.5 text-sm">
-                <MapPin className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                <span className="truncate" title={childTour.loadingLocation}>
-                  {truncateText(childTour.loadingLocation)}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <CalendarDays className="h-3 w-3 shrink-0" />
-                <span>{formatDate(childTour.loadingDate)}</span>
-              </div>
-            </div>
-
-            {/* Istovar */}
-            <div className="flex flex-col justify-center gap-1 min-w-0">
-              {childTour.unloadingStops && childTour.unloadingStops.length > 0 ? (
-                childTour.unloadingStops.map((stop, idx) => (
-                  <div key={stop.id || idx} className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-1.5 text-sm">
-                      <MapPin className="h-3.5 w-3.5 text-red-600 shrink-0" />
-                      <span className="truncate" title={stop.location}>
-                        {truncateText(stop.location)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <CalendarDays className="h-3 w-3 shrink-0" />
-                      <span>{formatDate(stop.unloadingDate)}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <span className="text-sm text-muted-foreground">-</span>
-              )}
-            </div>
-
-            {/* Carine */}
-            <div className="flex flex-col items-center justify-center gap-0.5 text-xs text-muted-foreground">
-              {childTour.exportCustoms && (
-                <div title={`Izvozna: ${childTour.exportCustoms}`}>
-                  {`Izv: ${childTour.exportCustoms.length > 15 ? childTour.exportCustoms.substring(0, 15) + "..." : childTour.exportCustoms}`}
-                </div>
-              )}
-              {!childTour.exportCustoms && childTour.importCustoms && (
-                <div className="text-xs text-muted-foreground">-</div>
-              )}
-              {childTour.importCustoms && (
-                <div title={`Uvozna: ${childTour.importCustoms}`}>
-                  {`Uv: ${childTour.importCustoms.length > 15 ? childTour.importCustoms.substring(0, 15) + "..." : childTour.importCustoms}`}
-                </div>
-              )}
-              {!childTour.exportCustoms && !childTour.importCustoms && (
-                <div className="text-xs text-muted-foreground">-</div>
-              )}
-            </div>
-
-            {/* Cijena */}
-            <PriceCell price={childTour.price} />
-
-            {/* ADR */}
-            <div className="flex items-center justify-center">
-              {childTour.isADR ? (
-                <Badge variant="destructive" className="text-xs gap-0.5">
-                  <AlertTriangle className="h-3 w-3" />
-                  ADR
-                </Badge>
-              ) : (
-                <span className="text-xs text-muted-foreground">-</span>
-              )}
-            </div>
-
-            {/* Završi - child can be completed independently */}
-            <div className="flex items-center justify-center">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs gap-1 text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
-                onClick={() => onComplete(childTour.id)}
-              >
-                <CheckCircle className="h-3.5 w-3.5" />
-                Završi
-              </Button>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-center">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => onEdit(childTour)}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Uredi
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onDelete(childTour)}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Obriši
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+          <ChildTourRow
+            key={`${activeTab}-${childTour.id}`}
+            childTour={childTour}
+            gridCols={gridCols}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onComplete={onComplete}
+            getTourTypeLabel={getTourTypeLabel}
+            getTourTypeBadgeVariant={getTourTypeBadgeVariant}
+            formatDate={formatDate}
+            truncateText={truncateText}
+          />
         ))}
       </div>
     )}
     </>
+  );
+}
+
+function ChildTourRow({
+  childTour,
+  gridCols,
+  onEdit,
+  onDelete,
+  onComplete,
+  getTourTypeLabel,
+  getTourTypeBadgeVariant,
+  formatDate,
+  truncateText,
+}: {
+  childTour: ActiveTour;
+  gridCols: string;
+  onEdit: (tour: ActiveTour) => void;
+  onDelete: (tour: ActiveTour) => void;
+  onComplete: (tourId: string) => void;
+  getTourTypeLabel: (type: string) => string;
+  getTourTypeBadgeVariant: (type: string) => string;
+  formatDate: (dateString: string | null) => string;
+  truncateText: (text: string, maxLength?: number) => string;
+}) {
+  const [isUnloadingExpanded, setIsUnloadingExpanded] = useState(false);
+  const hasMultipleUnloadings = childTour.unloadingStops && childTour.unloadingStops.length > 1;
+
+  return (
+    <div className={`grid ${gridCols} gap-2.5 px-3 py-3 pl-12 hover:bg-muted/30 transition-colors items-center border-b border-dashed`}>
+      {/* Tip */}
+      <div className="flex items-center justify-center gap-1">
+        <Link2 className="h-3 w-3 text-muted-foreground" />
+        <Badge 
+          variant={getTourTypeBadgeVariant(childTour.tourType) as "default" | "secondary" | "outline"}
+          className="text-xs whitespace-nowrap"
+        >
+          {getTourTypeLabel(childTour.tourType)}
+        </Badge>
+      </div>
+
+      {/* Kompanija */}
+      <div className="flex items-center gap-1.5 min-w-0">
+        <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="font-medium text-sm truncate" title={childTour.company}>{truncateText(childTour.company)}</span>
+      </div>
+
+      {/* Kamion - inherited from parent */}
+      <div className="flex items-center justify-start" title="Isti kao parent tura">
+        <span className="text-muted-foreground font-mono">-||-</span>
+      </div>
+
+      {/* Prikolica - inherited from parent */}
+      <div className="flex items-center justify-start" title="Ista kao parent tura">
+        <span className="text-muted-foreground font-mono">-||-</span>
+      </div>
+
+      {/* Vozač - inherited from parent */}
+      <div className="flex items-center justify-start" title="Isti kao parent tura">
+        <span className="text-muted-foreground font-mono">-||-</span>
+      </div>
+
+      {/* Utovar */}
+      <div className="flex flex-col justify-center gap-0.5 min-w-0">
+        <div className="flex items-center gap-1.5 text-sm">
+          <MapPin className="h-3.5 w-3.5 text-green-600 shrink-0" />
+          <span className="truncate" title={childTour.loadingLocation}>
+            {truncateText(childTour.loadingLocation)}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <CalendarDays className="h-3 w-3 shrink-0" />
+          <span>{formatDate(childTour.loadingDate)}</span>
+        </div>
+      </div>
+
+      {/* Istovar */}
+      <div className="flex flex-col justify-center gap-1 min-w-0">
+        {childTour.unloadingStops && childTour.unloadingStops.length > 0 ? (
+          <>
+            {/* Prikaži samo prvi istovar ako ih ima više i nisu expanded */}
+            {(!hasMultipleUnloadings || isUnloadingExpanded ? childTour.unloadingStops : [childTour.unloadingStops[0]]).map((stop, idx) => (
+              <div key={stop.id || idx} className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-1.5 text-sm">
+                  <MapPin className="h-3.5 w-3.5 text-red-600 shrink-0" />
+                  <span className="truncate" title={stop.location}>
+                    {truncateText(stop.location)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                  <CalendarDays className="h-3 w-3 shrink-0" />
+                  <span>{formatDate(stop.unloadingDate)}</span>
+                  {hasMultipleUnloadings && idx === 0 && (
+                    <button
+                      onClick={() => setIsUnloadingExpanded(!isUnloadingExpanded)}
+                      className="flex items-center gap-0.5 text-primary hover:text-primary/80 transition-colors ml-1"
+                      title={isUnloadingExpanded ? "Prikaži manje" : "Prikaži sve istovare"}
+                    >
+                      {isUnloadingExpanded ? (
+                        <>
+                          <ChevronDown className="h-3 w-3" />
+                          <span>Manje</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronRight className="h-3 w-3" />
+                          <span>+{childTour.unloadingStops.length - 1}</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </>
+        ) : (
+          <span className="text-sm text-muted-foreground">-</span>
+        )}
+      </div>
+
+      {/* Carine */}
+      <div className="flex flex-col items-center justify-center gap-0.5 text-xs text-muted-foreground">
+        {childTour.exportCustoms && (
+          <div title={`Izvozna: ${childTour.exportCustoms}`}>
+            {`Izv: ${childTour.exportCustoms.length > 15 ? childTour.exportCustoms.substring(0, 15) + "..." : childTour.exportCustoms}`}
+          </div>
+        )}
+        {!childTour.exportCustoms && childTour.importCustoms && (
+          <div className="text-xs text-muted-foreground">-</div>
+        )}
+        {childTour.importCustoms && (
+          <div title={`Uvozna: ${childTour.importCustoms}`}>
+            {`Uv: ${childTour.importCustoms.length > 15 ? childTour.importCustoms.substring(0, 15) + "..." : childTour.importCustoms}`}
+          </div>
+        )}
+        {!childTour.exportCustoms && !childTour.importCustoms && (
+          <div className="text-xs text-muted-foreground">-</div>
+        )}
+      </div>
+
+      {/* Cijena */}
+      <PriceCell price={childTour.price} />
+
+      {/* ADR */}
+      <div className="flex items-center justify-center">
+        {childTour.isADR ? (
+          <Badge variant="destructive" className="text-xs gap-0.5">
+            <AlertTriangle className="h-3 w-3" />
+            ADR
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        )}
+      </div>
+
+      {/* Završi - child can be completed independently */}
+      <div className="flex items-center justify-center">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs gap-1 text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
+          onClick={() => onComplete(childTour.id)}
+        >
+          <CheckCircle className="h-3.5 w-3.5" />
+          Završi
+        </Button>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-center">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(childTour)}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Uredi
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => onDelete(childTour)}
+              className="text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Obriši
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
   );
 }
 
