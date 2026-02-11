@@ -8,6 +8,7 @@ import Image from "next/image";
 import { AddVehicleDialog } from "@/components/add-vehicle-dialog";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
 
 const ITEMS_PER_PAGE = 40;
@@ -35,8 +36,13 @@ export function VehiclesList() {
   const [totalItems, setTotalItems] = useState(0);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState("all");
 
   const triggerRefresh = () => setRefreshKey((prev) => prev + 1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -82,9 +88,16 @@ export function VehiclesList() {
 
   const isEmpty = vehicles.length === 0 && !debouncedSearchQuery;
 
+  // Filter vehicles based on active tab
+  const filteredVehicles = vehicles.filter((vehicle) => {
+    if (activeTab === "available") {
+      return vehicle.vehicleType === "KAMION" && vehicle.isAvailable;
+    }
+    return true; // "all" tab shows everything
+  });
+
   return (
-    <div className="flex flex-col w-full max-w-7xl mx-auto">
-      {/* Header */}
+    <div className="flex flex-col w-full max-w-7xl mx-auto">{/*Header */}
       <div className="flex items-center justify-between px-8 py-6 border-b w-full">
         <div>
           <h1 className="text-2xl font-bold">Vozila</h1>
@@ -104,57 +117,123 @@ export function VehiclesList() {
         </div>
       ) : (
         <>
-      {/* Search Bar */}
-      <div className="px-8 py-4 border-b">
-        <div className="relative max-w-md">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            type="text"
-            placeholder="Pretraži vozila..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-          {isSearching && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
-            </div>
-          )}
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="px-8 pt-4">
+          <TabsList>
+            <TabsTrigger value="all">Svi</TabsTrigger>
+            <TabsTrigger value="available">Slobodni kamioni</TabsTrigger>
+          </TabsList>
         </div>
-      </div>
 
-      {/* Table Header */}
-      <div className="flex items-center gap-6 px-8 py-4 bg-muted/50 border-y text-sm font-medium text-muted-foreground">
-        <div className="flex-1 min-w-0">Vozilo</div>
-        <div className="w-32 flex-shrink-0">Tip</div>
-        <div className="w-40 flex-shrink-0">Status</div>
-        <div className="w-40 flex-shrink-0">Ažurirano</div>
-        <div className="w-12 flex-shrink-0" aria-label="Actions"></div>
-      </div>
-      
-      {/* Table Body */}
-      <div className="divide-y">
-        {vehicles.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <SearchIcon className="h-12 w-12 mx-auto mb-2 opacity-20" />
-            <p>Nema rezultata pretrage</p>
+        <TabsContent value="all" className="mt-0">
+          {/* Search Bar */}
+          <div className="px-8 py-4 border-b">
+            <div className="relative max-w-md">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Pretraži vozila..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+              {isSearching && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                </div>
+              )}
+            </div>
           </div>
-        ) : (
-          vehicles.map((vehicle) => (
-            <VehicleRow key={vehicle.id} data={vehicle} />
-          ))
-        )}
-      </div>
 
-      {/* Pagination */}
-      {totalItems > 0 && (
-        <Pagination
-          currentPage={currentPage}
-          totalItems={totalItems}
-          itemsPerPage={ITEMS_PER_PAGE}
-          onPageChange={setCurrentPage}
-        />
-      )}
+          {/* Table Header */}
+          <div className="flex items-center gap-6 px-8 py-4 bg-muted/50 border-y text-sm font-medium text-muted-foreground">
+            <div className="flex-1 min-w-0">Vozilo</div>
+            <div className="w-32 flex-shrink-0">Tip</div>
+            <div className="w-40 flex-shrink-0">Status</div>
+            <div className="w-40 flex-shrink-0">Ažurirano</div>
+            <div className="w-12 flex-shrink-0" aria-label="Actions"></div>
+          </div>
+          
+          {/* Table Body */}
+          <div className="divide-y">
+            {filteredVehicles.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <SearchIcon className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                <p>Nema rezultata pretrage</p>
+              </div>
+            ) : (
+              filteredVehicles.map((vehicle) => (
+                <VehicleRow key={vehicle.id} data={vehicle} />
+              ))
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalItems > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalItems={totalItems}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="available" className="mt-0">
+          {/* Search Bar */}
+          <div className="px-8 py-4 border-b">
+            <div className="relative max-w-md">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Pretraži vozila..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+              {isSearching && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Table Header */}
+          <div className="flex items-center gap-6 px-8 py-4 bg-muted/50 border-y text-sm font-medium text-muted-foreground">
+            <div className="flex-1 min-w-0">Vozilo</div>
+            <div className="w-32 flex-shrink-0">Tip</div>
+            <div className="w-40 flex-shrink-0">Status</div>
+            <div className="w-40 flex-shrink-0">Ažurirano</div>
+            <div className="w-12 flex-shrink-0" aria-label="Actions"></div>
+          </div>
+          
+          {/* Table Body */}
+          <div className="divide-y">
+            {filteredVehicles.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <TruckIcon className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                <p>Nema slobodnih kamiona</p>
+              </div>
+            ) : (
+              filteredVehicles.map((vehicle) => (
+                <VehicleRow key={vehicle.id} data={vehicle} />
+              ))
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalItems > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalItems={totalItems}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
         </>
       )}
     </div>

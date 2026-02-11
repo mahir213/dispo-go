@@ -181,6 +181,7 @@ model ContractedTour {
   isADR           Boolean         @default(false)
   isCompleted     Boolean         @default(false)
   isInvoiced      Boolean         @default(false)
+  invoiceNumber   String?
   completedAt     DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -188,10 +189,13 @@ model ContractedTour {
   driverId        String?
   truckId         String?
   trailerId       String?
-  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  driver          Driver?         @relation(fields: [driverId], references: [id], onDelete: SetNull)
-  truck           Vehicle?        @relation("TruckTours", fields: [truckId], references: [id], onDelete: SetNull)
-  trailer         Vehicle?        @relation("TrailerTours", fields: [trailerId], references: [id], onDelete: SetNull)
+  parentTourId    String?
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  driver          Driver?            @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  truck           Vehicle?           @relation("TruckTours", fields: [truckId], references: [id], onDelete: SetNull)
+  trailer         Vehicle?           @relation("TrailerTours", fields: [trailerId], references: [id], onDelete: SetNull)
+  parentTour      ContractedTour?    @relation("TourExtensions", fields: [parentTourId], references: [id], onDelete: SetNull)
+  childTours      ContractedTour[]   @relation("TourExtensions")
   unloadingStops  UnloadingStop[]
 
   @@index([organizationId])
@@ -199,6 +203,7 @@ model ContractedTour {
   @@index([organizationId, isCompleted, createdAt])
   @@index([truckId])
   @@index([trailerId])
+  @@index([parentTourId])
   @@map("contracted_tour")
 }
 

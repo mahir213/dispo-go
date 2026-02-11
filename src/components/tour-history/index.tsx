@@ -15,12 +15,22 @@ import {
   Eye,
   FileCheck,
   CheckCircle,
+  Edit2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pagination } from "@/components/ui/pagination";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { bsLocale } from "@/lib/locale";
 import { toast } from "sonner";
@@ -57,6 +67,7 @@ type HistoryTour = {
   isADR: boolean;
   isCompleted: boolean;
   isInvoiced: boolean;
+  invoiceNumber: string | null;
   completedAt: string | null;
   driverId: string | null;
   driver: Driver | null;
@@ -78,6 +89,11 @@ export function TourHistory() {
   const [totalItems, setTotalItems] = useState(0);
   const [activeTab, setActiveTab] = useState("nefakturisane");
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"invoice" | "edit">("invoice");
   const ITEMS_PER_PAGE = 40;
 
   useEffect(() => {
@@ -123,12 +139,25 @@ export function TourHistory() {
       });
   };
 
-  const handleMarkAsInvoiced = async (tourId: string) => {
+  const handleMarkAsInvoiced = async (tourId: string, currentInvoiceNumber?: string | null) => {
+    setSelectedTourId(tourId);
+    setInvoiceNumber(currentInvoiceNumber || "");
+    setDialogMode("invoice");
+    setInvoiceDialogOpen(true);
+  };
+
+  const handleConfirmInvoice = async () => {
+    if (!selectedTourId) return;
+
+    setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/contracted-tours/${tourId}/invoice`, {
+      const response = await fetch(`/api/contracted-tours/${selectedTourId}/invoice`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isInvoiced: true }),
+        body: JSON.stringify({ 
+          isInvoiced: true,
+          invoiceNumber: invoiceNumber.trim() || undefined,
+        }),
       });
 
       if (!response.ok) {
@@ -137,9 +166,53 @@ export function TourHistory() {
       }
 
       toast.success("Tura je označena kao fakturisana");
+      setInvoiceDialogOpen(false);
+      setInvoiceNumber("");
+      setSelectedTourId(null);
       fetchTours();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Greška pri označavanju ture");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateInvoiceNumber = async (tourId: string, currentInvoiceNumber?: string | null) => {
+    setSelectedTourId(tourId);
+    setInvoiceNumber(currentInvoiceNumber || "");
+    setDialogMode("edit");
+    setInvoiceDialogOpen(true);
+  };
+
+  const handleConfirmUpdateInvoiceNumber = async () => {
+    if (!selectedTourId) return;
+
+    setIsSubmitting(true);
+    try {
+      const currentTour = tours.find(t => t.id === selectedTourId);
+      const response = await fetch(`/api/contracted-tours/${selectedTourId}/invoice`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          isInvoiced: currentTour?.isInvoiced || false,
+          invoiceNumber: invoiceNumber.trim() || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to update invoice number");
+      }
+
+      toast.success("Broj računa je ažuriran");
+      setInvoiceDialogOpen(false);
+      setInvoiceNumber("");
+      setSelectedTourId(null);
+      fetchTours();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Greška pri ažuriranju broja računa");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -214,6 +287,7 @@ export function TourHistory() {
             searchQuery={searchQuery}
             showInvoiceButton={true}
             onMarkAsInvoiced={handleMarkAsInvoiced}
+            onUpdateInvoiceNumber={handleUpdateInvoiceNumber}
             currentPage={currentPage}
             totalItems={totalItems}
             itemsPerPage={ITEMS_PER_PAGE}
@@ -227,6 +301,7 @@ export function TourHistory() {
             searchQuery={searchQuery}
             showInvoiceButton={false}
             onUnmarkAsInvoiced={handleUnmarkAsInvoiced}
+            onUpdateInvoiceNumber={handleUpdateInvoiceNumber}
             currentPage={currentPage}
             totalItems={totalItems}
             itemsPerPage={ITEMS_PER_PAGE}
@@ -234,6 +309,54 @@ export function TourHistory() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Invoice Dialog */}
+      <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {dialogMode === "invoice" ? "Fakturisanje ture" : "Ažuriranje broja računa"}
+            </DialogTitle>
+            <DialogDescription>
+              {dialogMode === "invoice" 
+                ? "Unesite broj računa za ovu turu (opciono)"
+                : "Promijenite broj računa za ovu turu"
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="invoiceNumber">Broj računa</Label>
+              <Input
+                id="invoiceNumber"
+                placeholder="npr. 2024/001"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !isSubmitting) {
+                    dialogMode === "invoice" ? handleConfirmInvoice() : handleConfirmUpdateInvoiceNumber();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setInvoiceDialogOpen(false)}
+              disabled={isSubmitting}
+            >
+              Otkaži
+            </Button>
+            <Button 
+              onClick={() => dialogMode === "invoice" ? handleConfirmInvoice() : handleConfirmUpdateInvoiceNumber()} 
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Čuvam..." : dialogMode === "invoice" ? "Fakturiši" : "Sačuvaj"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -273,6 +396,7 @@ function TourTable({
   showInvoiceButton,
   onMarkAsInvoiced,
   onUnmarkAsInvoiced,
+  onUpdateInvoiceNumber,
   currentPage,
   totalItems,
   itemsPerPage,
@@ -281,8 +405,9 @@ function TourTable({
   tours: HistoryTour[];
   searchQuery: string;
   showInvoiceButton: boolean;
-  onMarkAsInvoiced?: (id: string) => void;
+  onMarkAsInvoiced?: (id: string, currentInvoiceNumber?: string | null) => void;
   onUnmarkAsInvoiced?: (id: string) => void;
+  onUpdateInvoiceNumber?: (id: string, currentInvoiceNumber?: string | null) => void;
   currentPage: number;
   totalItems: number;
   itemsPerPage: number;
@@ -297,8 +422,8 @@ function TourTable({
     );
   }
 
-  // Grid columns: Tip | Kompanija | Kamion | Prikolica | Vozač | Utovar | Istovar | Cijena | ADR | Završeno | Akcije
-  const gridCols = "grid-cols-[70px_180px_120px_120px_140px_minmax(200px,1fr)_minmax(200px,1fr)_110px_70px_110px_130px]";
+  // Grid columns: Tip | Kompanija | Kamion | Prikolica | Vozač | Utovar | Istovar | Cijena | ADR | Završeno | Broj računa | Akcije
+  const gridCols = "grid-cols-[70px_180px_120px_120px_140px_minmax(200px,1fr)_minmax(200px,1fr)_110px_70px_110px_120px_130px]";
 
   return (
     <>
@@ -314,6 +439,7 @@ function TourTable({
         <div className="flex items-center justify-center">Cijena</div>
         <div className="flex items-center justify-center">ADR</div>
         <div className="flex items-center justify-center">Završeno</div>
+        <div className="flex items-center justify-center">Br. računa</div>
         <div></div>
       </div>
 
@@ -327,6 +453,7 @@ function TourTable({
             showInvoiceButton={showInvoiceButton}
             onMarkAsInvoiced={onMarkAsInvoiced}
             onUnmarkAsInvoiced={onUnmarkAsInvoiced}
+            onUpdateInvoiceNumber={onUpdateInvoiceNumber}
           />
         ))}
       </div>
@@ -348,12 +475,14 @@ function TourRow({
   showInvoiceButton,
   onMarkAsInvoiced,
   onUnmarkAsInvoiced,
+  onUpdateInvoiceNumber,
 }: {
   tour: HistoryTour;
   gridCols: string;
   showInvoiceButton: boolean;
-  onMarkAsInvoiced?: (id: string) => void;
+  onMarkAsInvoiced?: (id: string, currentInvoiceNumber?: string | null) => void;
   onUnmarkAsInvoiced?: (id: string) => void;
+  onUpdateInvoiceNumber?: (id: string, currentInvoiceNumber?: string | null) => void;
 }) {
   const getTourTypeLabel = (type: string) => {
     switch (type) {
@@ -503,6 +632,27 @@ function TourRow({
         </span>
       </div>
 
+      {/* Broj računa */}
+      <div className="flex items-center justify-center">
+        <button
+          onClick={() => onUpdateInvoiceNumber?.(tour.id, tour.invoiceNumber)}
+          className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted/50 transition-colors group"
+          title="Klikni da izmijeniš broj računa"
+        >
+          {tour.invoiceNumber ? (
+            <>
+              <span className="text-xs font-medium">{tour.invoiceNumber}</span>
+              <Edit2 className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-muted-foreground">-</span>
+              <Edit2 className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Akcije */}
       <div className="flex items-center justify-center">
         {showInvoiceButton ? (
@@ -510,7 +660,7 @@ function TourRow({
             variant="outline"
             size="sm"
             className="h-8 gap-1.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-            onClick={() => onMarkAsInvoiced?.(tour.id)}
+            onClick={() => onMarkAsInvoiced?.(tour.id, tour.invoiceNumber)}
           >
             <FileCheck className="h-3.5 w-3.5" />
             Fakturiši

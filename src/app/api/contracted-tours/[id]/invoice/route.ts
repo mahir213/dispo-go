@@ -7,6 +7,7 @@ import { checkAuth, requirePermission } from "@/lib/api-auth";
 
 const invoiceSchema = z.object({
   isInvoiced: z.boolean(),
+  invoiceNumber: z.string().optional(),
 });
 
 export async function PUT(
@@ -48,6 +49,7 @@ export async function PUT(
       where: { id },
       data: {
         isInvoiced: validated.isInvoiced,
+        invoiceNumber: validated.invoiceNumber || null,
       },
       include: {
         unloadingStops: true,
