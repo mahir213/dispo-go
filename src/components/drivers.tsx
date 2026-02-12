@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { useEffect, useState } from "react";
 
-const ITEMS_PER_PAGE = 40;
+const ITEMS_PER_PAGE = 50;
 
 type DriverNote = {
   id: string;

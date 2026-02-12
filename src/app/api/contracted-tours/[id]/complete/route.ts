@@ -65,22 +65,56 @@ export async function PUT(
       });
 
       if (childTours.length > 0) {
-        // Complete parent and all child tours, keep resources for history
-        await prisma.contractedTour.updateMany({
-          where: {
-            OR: [
-              { id: id },
-              { parentTourId: id },
-            ],
-            organizationId: authResult.user.organizationId,
-          },
-          data: {
-            isCompleted: true,
-            completedAt: new Date(),
-            // Keep driverId, truckId, trailerId for history
-            // Validation in assign endpoints checks isCompleted: false
-          },
+        const sortedChildTours = [...childTours].sort((a, b) => {
+          const aLoading = a.loadingDate ? a.loadingDate.getTime() : null;
+          const bLoading = b.loadingDate ? b.loadingDate.getTime() : null;
+
+          if (aLoading === null && bLoading === null) {
+            return a.createdAt.getTime() - b.createdAt.getTime();
+          }
+          if (aLoading === null) return 1;
+          if (bLoading === null) return -1;
+          if (aLoading !== bLoading) return aLoading - bLoading;
+          return a.createdAt.getTime() - b.createdAt.getTime();
         });
+
+        const newParent = sortedChildTours[0];
+        const newParentId = newParent.id;
+        const remainingChildIds = sortedChildTours.slice(1).map((tour) => tour.id);
+
+        await prisma.$transaction([
+          prisma.contractedTour.update({
+            where: { id },
+            data: {
+              isCompleted: true,
+              completedAt: new Date(),
+              // Keep resources for history
+            },
+          }),
+          prisma.contractedTour.update({
+            where: { id: newParentId },
+            data: {
+              parentTourId: null,
+              isCompleted: false,
+              completedAt: null,
+            },
+          }),
+          ...(remainingChildIds.length > 0
+            ? [
+                prisma.contractedTour.updateMany({
+                  where: {
+                    id: { in: remainingChildIds },
+                    organizationId: authResult.user.organizationId,
+                  },
+                  data: {
+                    parentTourId: newParentId,
+                    isCompleted: false,
+                    completedAt: null,
+                  },
+                }),
+              ]
+            : []),
+        ]);
       } else {
         // Regular single tour - complete and keep resources for history
         await prisma.contractedTour.update({

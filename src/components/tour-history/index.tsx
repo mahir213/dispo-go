@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   History,
   SearchIcon,
@@ -86,24 +86,33 @@ type HistoryTour = {
 export function TourHistory() {
   const [tours, setTours] = useState<HistoryTour[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [tabTotals, setTabTotals] = useState<Record<string, number>>({});
+  const [hasMore, setHasMore] = useState(true);
   const [activeTab, setActiveTab] = useState("nefakturisane");
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const totalsCacheRef = useRef<{ query: string; timestamp: number; totals: Record<string, number> } | null>(null);
+  const TOTALS_CACHE_TTL_MS = 30 * 1000;
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogMode, setDialogMode] = useState<"invoice" | "edit">("invoice");
-  const ITEMS_PER_PAGE = 40;
+  const INITIAL_ITEMS = 50;
+  const LOAD_MORE_ITEMS = 20;
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
       setCurrentPage(1);
+      setHasMore(true);
     }, 500);
 
     return () => clearTimeout(timer);
@@ -111,18 +120,36 @@ export function TourHistory() {
 
   useEffect(() => {
     fetchTours();
-  }, [currentPage, debouncedSearchQuery]);
+  }, [currentPage, debouncedSearchQuery, activeTab]);
 
-  const fetchTours = () => {
+  useEffect(() => {
+    fetchTabTotals();
+  }, [debouncedSearchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setTours([]);
+    setHasMore(true);
+  }, [activeTab]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [activeTab]);
+
+  const fetchTours = (isLoadingMore = false) => {
+    const limit = currentPage === 1 ? INITIAL_ITEMS : LOAD_MORE_ITEMS;
     const params = new URLSearchParams({
       page: currentPage.toString(),
-      limit: ITEMS_PER_PAGE.toString(),
+      limit: limit.toString(),
       filterCompleted: "true",
+      ...(activeTab === "nefakturisane" ? { filterInvoiced: "false" } : { filterInvoiced: "true" }),
       ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
     });
 
-    if (!initialLoadDone) {
+    if (!initialLoadDone && !isLoadingMore) {
       setLoading(true);
+    } else if (isLoadingMore) {
+      setLoadingMore(true);
     } else {
       setIsSearching(true);
     }
@@ -130,17 +157,147 @@ export function TourHistory() {
     fetch(`/api/contracted-tours?${params}`)
       .then((res) => res.json())
       .then((data) => {
-        setTours(data.tours || []);
-        setTotalItems(data.pagination?.total || 0);
+        const newTours = data.tours || [];
+        const total = data.pagination?.total || 0;
+        const mergeToursUnique = (existing: HistoryTour[], incoming: HistoryTour[]) => {
+          const map = new Map<string, HistoryTour>();
+          for (const t of existing) map.set(t.id, t);
+          for (const t of incoming) map.set(t.id, t);
+          return Array.from(map.values());
+        };
+
+        if (isLoadingMore || currentPage > 1) {
+          setTours((prev) => {
+            const next = mergeToursUnique(prev, newTours);
+            setHasMore(newTours.length === limit && next.length < total);
+            return next;
+          });
+        } else {
+          // Replace but ensure uniqueness just in case
+          const unique = mergeToursUnique([], newTours);
+          setTours(unique);
+          setHasMore(unique.length === limit && unique.length < total);
+        }
+        setTotalItems(total);
         setLoading(false);
+        setLoadingMore(false);
         setIsSearching(false);
         setInitialLoadDone(true);
       })
       .catch((error) => {
         console.error("Error loading tours:", error);
         setLoading(false);
+        setLoadingMore(false);
         setIsSearching(false);
       });
+  };
+
+  const fetchTabTotals = () => {
+    const cached = totalsCacheRef.current;
+    if (cached && cached.query === debouncedSearchQuery) {
+      const isFresh = Date.now() - cached.timestamp < TOTALS_CACHE_TTL_MS;
+      if (isFresh) {
+        setTabTotals(cached.totals);
+        return;
+      }
+    }
+
+    const tabConfigs = [
+      { key: "nefakturisane", filterInvoiced: "false" },
+      { key: "fakturisane", filterInvoiced: "true" },
+    ];
+
+    Promise.all(
+      tabConfigs.map((tab) => {
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "1",
+          filterCompleted: "true",
+          filterInvoiced: tab.filterInvoiced,
+          ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
+        });
+
+        return fetch(`/api/contracted-tours?${params}`)
+          .then((res) => res.json())
+          .then((data) => ({ key: tab.key, total: data.pagination?.total || 0 }))
+          .catch(() => ({ key: tab.key, total: 0 }));
+      })
+    ).then((results) => {
+      const totals = results.reduce<Record<string, number>>((acc, result) => {
+        acc[result.key] = result.total;
+        return acc;
+      }, {});
+      totalsCacheRef.current = {
+        query: debouncedSearchQuery,
+        timestamp: Date.now(),
+        totals,
+      };
+      setTabTotals(totals);
+    });
+  };
+
+  const handleLoadMore = () => {
+    setCurrentPage((prev) => prev + 1);
+  };
+
+  const toggleSelectionMode = () => {
+    setSelectionMode((prev) => {
+      if (prev) {
+        setSelectedIds(new Set());
+      }
+      return !prev;
+    });
+  };
+
+  const toggleSelectId = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (ids: string[], checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        ids.forEach((id) => next.add(id));
+      } else {
+        ids.forEach((id) => next.delete(id));
+      }
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    const shouldDelete = window.confirm("Obrisati odabrane ture?");
+    if (!shouldDelete) return;
+
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        const response = await fetch(`/api/contracted-tours/${id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || "Greška pri brisanju ture");
+        }
+      }
+      toast.success("Odabrane ture su obrisane");
+      setSelectedIds(new Set());
+      setCurrentPage(1);
+      setTours([]);
+      setHasMore(true);
+      fetchTours();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Greška pri brisanju tura");
+    }
   };
 
   const handleMarkAsInvoiced = async (tourId: string, currentInvoiceNumber?: string | null) => {
@@ -248,14 +405,14 @@ export function TourHistory() {
     return <TourHistoryEmpty />;
   }
 
-  const nefakturisaneTours = tours.filter((t) => !t.isInvoiced);
-  const fakturisaneTours = tours.filter((t) => t.isInvoiced);
+  const nefakturisaneTours = activeTab === "nefakturisane" ? tours : [];
+  const fakturisaneTours = activeTab === "fakturisane" ? tours : [];
 
   return (
     <div className="flex flex-col w-full -ml-12">
       {/* Search Bar */}
-      <div className="px-8 py-4 border-b">
-        <div className="relative max-w-md">
+      <div className="px-8 py-4 border-b flex items-center justify-between gap-4">
+        <div className="relative max-w-md w-full">
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
@@ -270,6 +427,20 @@ export function TourHistory() {
             </div>
           )}
         </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={toggleSelectionMode}>
+            {selectionMode ? "Završi" : "Označi"}
+          </Button>
+          {selectionMode && (
+            <Button
+              variant="destructive"
+              onClick={handleDeleteSelected}
+              disabled={selectedIds.size === 0}
+            >
+              Obriši ({selectedIds.size})
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -277,10 +448,10 @@ export function TourHistory() {
         <div className="px-8 pt-4">
           <TabsList>
             <TabsTrigger value="nefakturisane">
-              Nefakturisane ({nefakturisaneTours.length})
+              Nefakturisane ({tabTotals.nefakturisane || 0})
             </TabsTrigger>
             <TabsTrigger value="fakturisane">
-              Fakturisane ({fakturisaneTours.length})
+              Fakturisane ({tabTotals.fakturisane || 0})
             </TabsTrigger>
           </TabsList>
         </div>
@@ -292,10 +463,14 @@ export function TourHistory() {
             showInvoiceButton={true}
             onMarkAsInvoiced={handleMarkAsInvoiced}
             onUpdateInvoiceNumber={handleUpdateInvoiceNumber}
-            currentPage={currentPage}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelectId}
+            onToggleSelectAll={toggleSelectAll}
+            loading={loading}
             totalItems={totalItems}
-            itemsPerPage={ITEMS_PER_PAGE}
-            onPageChange={setCurrentPage}
+            loadingMore={loadingMore}
+            onLoadMore={handleLoadMore}
           />
         </TabsContent>
 
@@ -306,10 +481,14 @@ export function TourHistory() {
             showInvoiceButton={false}
             onUnmarkAsInvoiced={handleUnmarkAsInvoiced}
             onUpdateInvoiceNumber={handleUpdateInvoiceNumber}
-            currentPage={currentPage}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelectId}
+            onToggleSelectAll={toggleSelectAll}
+            loading={loading}
             totalItems={totalItems}
-            itemsPerPage={ITEMS_PER_PAGE}
-            onPageChange={setCurrentPage}
+            loadingMore={loadingMore}
+            onLoadMore={handleLoadMore}
           />
         </TabsContent>
       </Tabs>
@@ -401,10 +580,14 @@ function TourTable({
   onMarkAsInvoiced,
   onUnmarkAsInvoiced,
   onUpdateInvoiceNumber,
-  currentPage,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
+  loading,
   totalItems,
-  itemsPerPage,
-  onPageChange,
+  loadingMore,
+  onLoadMore,
 }: {
   tours: HistoryTour[];
   searchQuery: string;
@@ -412,10 +595,14 @@ function TourTable({
   onMarkAsInvoiced?: (id: string, currentInvoiceNumber?: string | null) => void;
   onUnmarkAsInvoiced?: (id: string) => void;
   onUpdateInvoiceNumber?: (id: string, currentInvoiceNumber?: string | null) => void;
-  currentPage: number;
+  selectionMode: boolean;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onToggleSelectAll: (ids: string[], checked: boolean) => void;
+  loading: boolean;
   totalItems: number;
-  itemsPerPage: number;
-  onPageChange: (page: number) => void;
+  loadingMore: boolean;
+  onLoadMore: () => void;
 }) {
   if (tours.length === 0) {
     return (
@@ -426,13 +613,28 @@ function TourTable({
     );
   }
 
-  // Grid columns: Tip | Kompanija | Kamion | Prikolica | Vozač | Utovar | Istovar | Cijena | ADR | Završeno | Broj računa | Akcije
-  const gridCols = "grid-cols-[70px_180px_120px_120px_140px_minmax(200px,1fr)_minmax(200px,1fr)_110px_70px_110px_120px_130px]";
+  // Grid columns: (Select) | Tip | Kompanija | Kamion | Prikolica | Vozač | Utovar | Istovar | Cijena | ADR | Završeno | Broj računa | Akcije
+  const gridCols = selectionMode
+    ? "grid-cols-[36px_70px_180px_120px_120px_140px_minmax(200px,1fr)_minmax(200px,1fr)_110px_70px_110px_120px_130px]"
+    : "grid-cols-[70px_180px_120px_120px_140px_minmax(200px,1fr)_minmax(200px,1fr)_110px_70px_110px_120px_130px]";
+
+  const allIds = tours.map((tour) => tour.id);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
 
   return (
     <>
       {/* Table Header */}
       <div className={`grid ${gridCols} gap-2.5 px-3 py-3 bg-muted/50 border-y text-xs font-medium text-muted-foreground`}>
+        {selectionMode && (
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={(e) => onToggleSelectAll(allIds, e.target.checked)}
+              aria-label="Označi sve"
+            />
+          </div>
+        )}
         <div className="flex items-center justify-center">Tip</div>
         <div className="flex items-center">Kompanija</div>
         <div className="flex items-center justify-start">Kamion</div>
@@ -458,17 +660,32 @@ function TourTable({
             onMarkAsInvoiced={onMarkAsInvoiced}
             onUnmarkAsInvoiced={onUnmarkAsInvoiced}
             onUpdateInvoiceNumber={onUpdateInvoiceNumber}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={onToggleSelect}
           />
         ))}
       </div>
 
-      {/* Pagination */}
-      <Pagination
-        currentPage={currentPage}
-        totalItems={totalItems}
-        itemsPerPage={itemsPerPage}
-        onPageChange={onPageChange}
-      />
+      {/* Load More Button */}
+      {!loading && tours.length < totalItems && (
+        <div className="flex justify-center py-6 border-t">
+          <Button 
+            variant="outline" 
+            onClick={onLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full mr-2" />
+                Učitavam...
+              </>
+            ) : (
+              "Učitaj još"
+            )}
+          </Button>
+        </div>
+      )}
     </>
   );
 }
@@ -480,6 +697,9 @@ function TourRow({
   onMarkAsInvoiced,
   onUnmarkAsInvoiced,
   onUpdateInvoiceNumber,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
 }: {
   tour: HistoryTour;
   gridCols: string;
@@ -487,6 +707,9 @@ function TourRow({
   onMarkAsInvoiced?: (id: string, currentInvoiceNumber?: string | null) => void;
   onUnmarkAsInvoiced?: (id: string) => void;
   onUpdateInvoiceNumber?: (id: string, currentInvoiceNumber?: string | null) => void;
+  selectionMode: boolean;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
 }) {
   const [isUnloadingExpanded, setIsUnloadingExpanded] = useState(false);
   const hasMultipleUnloadings = tour.unloadingStops && tour.unloadingStops.length > 1;
@@ -528,6 +751,16 @@ function TourRow({
 
   return (
     <div className={`grid ${gridCols} gap-2.5 px-3 py-3 hover:bg-muted/30 transition-colors items-center`}>
+      {selectionMode && (
+        <div className="flex items-center justify-center">
+          <input
+            type="checkbox"
+            checked={selectedIds.has(tour.id)}
+            onChange={() => onToggleSelect(tour.id)}
+            aria-label={`Označi turu ${tour.id}`}
+          />
+        </div>
+      )}
       {/* Tip */}
       <div className="flex items-center justify-center">
         <Badge 

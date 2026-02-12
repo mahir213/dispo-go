@@ -27,8 +27,25 @@ export default function RootLayout({
   return (
     <html lang="sr" suppressHydrationWarning>
       <body
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <script dangerouslySetInnerHTML={{__html: `
+          (function() {
+            try {
+              var key = 'dispo-go-theme';
+              var stored = localStorage.getItem(key);
+              var root = document.documentElement;
+              root.classList.remove('light','dark');
+              if (stored === 'light' || stored === 'dark') {
+                root.classList.add(stored);
+              } else {
+                var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                root.classList.add(prefersDark ? 'dark' : 'light');
+              }
+            } catch (e) {}
+          })();
+        `}} />
         <ThemeProvider defaultTheme="system" storageKey="dispo-go-theme">
           {children}
           <Toaster />

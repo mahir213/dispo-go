@@ -11,7 +11,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
 
-const ITEMS_PER_PAGE = 40;
+const ITEMS_PER_PAGE = 50;
 
 type Vehicle = {
   id: string;
@@ -24,6 +24,8 @@ type Vehicle = {
   createdAt: string;
   updatedAt: string;
   isAvailable?: boolean;
+  availableDate?: string | null;
+  tourType?: string | undefined;
 };
 
 export function VehiclesList() {
@@ -91,7 +93,12 @@ export function VehiclesList() {
   // Filter vehicles based on active tab
   const filteredVehicles = vehicles.filter((vehicle) => {
     if (activeTab === "available") {
-      return vehicle.vehicleType === "KAMION" && vehicle.isAvailable;
+      // Kamion je "slobodan" ili "slobodan za..." samo ako ima dodijeljen UVOZ, a nema drugih tura (IZVOZ, MEDJUTURA)
+      if (vehicle.vehicleType !== "KAMION") return false;
+      if (vehicle.isAvailable) return true;
+      // Ako ima availableDate, provjeri da li su sve ture UVOZ
+      if (vehicle.availableDate && vehicle.tourType === "UVOZ") return true;
+      return false;
     }
     return true; // "all" tab shows everything
   });
@@ -262,6 +269,17 @@ function VehicleRow({ data }: { data: Vehicle }) {
                           isExpiringSoon(data.registrationExpiryDate) || 
                           isExpiringSoon(data.ppAparatExpiryDate);
 
+  // Calculate days until available
+  const getDaysUntilAvailable = () => {
+    if (!data.availableDate) return null;
+    const availableDate = new Date(data.availableDate);
+    const now = new Date();
+    const diffDays = Math.ceil((availableDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const daysUntilAvailable = getDaysUntilAvailable();
+
   return (
     <Link href={`/vozila/${data.id}`} className="block hover:bg-muted/30 transition-colors">
       <div className="flex items-center gap-6 px-8 py-4">
@@ -277,10 +295,23 @@ function VehicleRow({ data }: { data: Vehicle }) {
           <div className="min-w-0 flex-1">
             <div className="font-medium truncate flex items-center gap-2">
               {data.name}
-              {data.isAvailable && data.vehicleType === "KAMION" && (
-                <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                  Slobodan
-                </span>
+              {/* Prikaz slobodnog statusa samo ako je zaista slobodan ili ima samo UVOZ turu */}
+              {data.vehicleType === "KAMION" && (
+                data.isAvailable ? (
+                  <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                    Slobodan
+                  </span>
+                ) : data.tourType === "UVOZ" && data.availableDate ? (
+                  daysUntilAvailable !== null && daysUntilAvailable > 0 ? (
+                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                      Slobodan za {daysUntilAvailable} {daysUntilAvailable === 1 ? "dan" : "dana"}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                      Slobodan danas
+                    </span>
+                  )
+                ) : null
               )}
             </div>
             <div className="text-sm text-muted-foreground font-mono truncate">{data.registrationNumber}</div>

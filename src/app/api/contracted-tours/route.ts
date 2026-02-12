@@ -79,9 +79,13 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "40");
+    const limit = parseInt(searchParams.get("limit") || "50");
     const search = searchParams.get("search") || "";
     const filterCompleted = searchParams.get("filterCompleted");
+    const filterInvoiced = searchParams.get("filterInvoiced");
+    const tourType = searchParams.get("tourType");
+    const driverStatus = searchParams.get("driverStatus");
+    const includeChildren = searchParams.get("includeChildren") === "true";
     const skip = (page - 1) * limit;
 
     // Build where clause
@@ -94,6 +98,26 @@ export async function GET(request: Request) {
       whereClause.isCompleted = true;
     } else if (filterCompleted === "false") {
       whereClause.isCompleted = false;
+    }
+
+    if (filterInvoiced === "true") {
+      whereClause.isInvoiced = true;
+    } else if (filterInvoiced === "false") {
+      whereClause.isInvoiced = false;
+    }
+
+    if (tourType) {
+      whereClause.tourType = tourType;
+    }
+
+    if (driverStatus === "assigned") {
+      whereClause.driverId = { not: null };
+    } else if (driverStatus === "unassigned") {
+      whereClause.driverId = null;
+    }
+
+    if (includeChildren) {
+      whereClause.parentTourId = null;
     }
 
     if (search) {
@@ -122,38 +146,98 @@ export async function GET(request: Request) {
       where: whereClause,
     });
 
-    const tours = await prisma.contractedTour.findMany({
-      where: whereClause,
-      include: {
-        unloadingStops: {
-          orderBy: {
-            createdAt: "asc",
-          },
-        },
-        driver: {
-          select: {
-            id: true,
-            name: true,
-            phoneNumber: true,
-          },
-        },
-        truck: {
-          select: {
-            id: true,
-            name: true,
-            registrationNumber: true,
-            vehicleType: true,
-          },
-        },
-        trailer: {
-          select: {
-            id: true,
-            name: true,
-            registrationNumber: true,
-            vehicleType: true,
-          },
+    const childWhereClause: any = {
+      organizationId: authResult.user.organizationId,
+    };
+
+    if (filterCompleted === "true") {
+      childWhereClause.isCompleted = true;
+    } else if (filterCompleted === "false") {
+      childWhereClause.isCompleted = false;
+    }
+
+    if (filterInvoiced === "true") {
+      childWhereClause.isInvoiced = true;
+    } else if (filterInvoiced === "false") {
+      childWhereClause.isInvoiced = false;
+    }
+
+    if (driverStatus === "assigned") {
+      childWhereClause.driverId = { not: null };
+    } else if (driverStatus === "unassigned") {
+      childWhereClause.driverId = null;
+    }
+
+    const includeClause: any = {
+      unloadingStops: {
+        orderBy: {
+          createdAt: "asc",
         },
       },
+      driver: {
+        select: {
+          id: true,
+          name: true,
+          phoneNumber: true,
+        },
+      },
+      truck: {
+        select: {
+          id: true,
+          name: true,
+          registrationNumber: true,
+          vehicleType: true,
+        },
+      },
+      trailer: {
+        select: {
+          id: true,
+          name: true,
+          registrationNumber: true,
+          vehicleType: true,
+        },
+      },
+    };
+
+    if (includeChildren) {
+      includeClause.childTours = {
+        where: childWhereClause,
+        include: {
+          unloadingStops: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          driver: {
+            select: {
+              id: true,
+              name: true,
+              phoneNumber: true,
+            },
+          },
+          truck: {
+            select: {
+              id: true,
+              name: true,
+              registrationNumber: true,
+              vehicleType: true,
+            },
+          },
+          trailer: {
+            select: {
+              id: true,
+              name: true,
+              registrationNumber: true,
+              vehicleType: true,
+            },
+          },
+        },
+      };
+    }
+
+    const tours = await prisma.contractedTour.findMany({
+      where: whereClause,
+      include: includeClause,
       orderBy: {
         createdAt: "desc",
       },

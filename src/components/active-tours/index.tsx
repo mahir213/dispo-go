@@ -96,9 +96,10 @@ export function ActiveToursList() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [tabTotals, setTabTotals] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState("sve");
   const [initialLoadDone, setInitialLoadDone] = useState(false);
-  const ITEMS_PER_PAGE = 40;
+  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -111,15 +112,29 @@ export function ActiveToursList() {
 
   useEffect(() => {
     fetchTours();
-  }, [currentPage, debouncedSearchQuery]);
+  }, [currentPage, debouncedSearchQuery, activeTab]);
+
+  useEffect(() => {
+    fetchTabTotals();
+  }, [debouncedSearchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
 
   const fetchTours = () => {
     const params = new URLSearchParams({
       page: currentPage.toString(),
       limit: ITEMS_PER_PAGE.toString(),
       filterCompleted: "false",
+      driverStatus: "assigned",
+      ...(activeTab === "sve" ? { includeChildren: "true" } : {}),
       ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
     });
+
+    if (activeTab !== "sve") {
+      params.set("tourType", activeTab.toUpperCase());
+    }
 
     if (!initialLoadDone) {
       setLoading(true);
@@ -130,22 +145,18 @@ export function ActiveToursList() {
     fetch(`/api/contracted-tours?${params}`)
       .then((res) => res.json())
       .then((data) => {
-        const allTours = (data.tours || []).filter((tour: ActiveTour) => 
-          tour.driverId !== null && tour.isCompleted !== true
-        );
-        
-        // Group tours: find parent tours and attach their children
-        const parentTours = allTours.filter((t: ActiveTour) => !t.parentTourId);
-        const childTours = allTours.filter((t: ActiveTour) => t.parentTourId);
-        
-        // Attach children to their parents
-        const groupedTours = parentTours.map((parent: ActiveTour) => ({
-          ...parent,
-          childTours: childTours.filter((child: ActiveTour) => child.parentTourId === parent.id)
+        const total = data.pagination?.total || 0;
+        if (activeTab === "sve") {
+          const parentTours = (data.tours || []).filter((tour: ActiveTour) => !tour.parentTourId);
+          setTours(parentTours);
+        } else {
+          setTours(data.tours || []);
+        }
+        setTotalItems(total);
+        setTabTotals((prev) => ({
+          ...prev,
+          [activeTab]: total,
         }));
-        
-        setTours(groupedTours);
-        setTotalItems(data.pagination?.total || 0);
         setLoading(false);
         setIsSearching(false);
         setInitialLoadDone(true);
@@ -155,6 +166,48 @@ export function ActiveToursList() {
         setLoading(false);
         setIsSearching(false);
       });
+  };
+
+  const fetchTabTotals = () => {
+    const tabConfigs = [
+      { key: "sve", includeChildren: true },
+      { key: "uvoz", tourType: "UVOZ" },
+      { key: "izvoz", tourType: "IZVOZ" },
+      { key: "medjutura", tourType: "MEDJUTURA" },
+    ];
+
+    Promise.all(
+      tabConfigs.map((tab) => {
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "1",
+          filterCompleted: "false",
+          driverStatus: "assigned",
+          ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
+        });
+
+        if (tab.tourType) {
+          params.set("tourType", tab.tourType);
+        }
+
+        if (tab.includeChildren) {
+          params.set("includeChildren", "true");
+        }
+
+        return fetch(`/api/contracted-tours?${params}`)
+          .then((res) => res.json())
+          .then((data) => ({ key: tab.key, total: data.pagination?.total || 0 }))
+          .catch(() => ({ key: tab.key, total: 0 }));
+      })
+    ).then((results) => {
+      setTabTotals((prev) => {
+        const next = { ...prev };
+        results.forEach((result) => {
+          next[result.key] = result.total;
+        });
+        return next;
+      });
+    });
   };
 
   const handleCompleteTour = async (tourId: string) => {
@@ -236,16 +289,16 @@ export function ActiveToursList() {
         <div className="px-8 pt-4">
           <TabsList>
             <TabsTrigger value="sve">
-              Sve ({sortedTours.length})
+              Sve ({tabTotals.sve || 0})
             </TabsTrigger>
             <TabsTrigger value="uvoz">
-              Uvoz ({uvozTours.length})
+              Uvoz ({tabTotals.uvoz || 0})
             </TabsTrigger>
             <TabsTrigger value="izvoz">
-              Izvoz ({izvozTours.length})
+              Izvoz ({tabTotals.izvoz || 0})
             </TabsTrigger>
             <TabsTrigger value="medjutura">
-              Međ. ({medjuturaTours.length})
+              Međ. ({tabTotals.medjutura || 0})
             </TabsTrigger>
           </TabsList>
         </div>

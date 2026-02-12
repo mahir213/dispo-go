@@ -74,6 +74,8 @@ type ContractedTour = {
   truck: Vehicle | null;
   trailerId: string | null;
   trailer: Vehicle | null;
+  parentTourId: string | null;
+  childTours?: ContractedTour[];
   createdAt: string;
   updatedAt: string;
 };
@@ -89,9 +91,10 @@ export function ContractedToursList() {
   const [activateTour, setActivateTour] = useState<ContractedTour | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [tabTotals, setTabTotals] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState("ugovorene");
   const [initialLoadDone, setInitialLoadDone] = useState(false);
-  const ITEMS_PER_PAGE = 40;
+  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -104,15 +107,28 @@ export function ContractedToursList() {
 
   useEffect(() => {
     fetchTours();
-  }, [currentPage, debouncedSearchQuery]);
+  }, [currentPage, debouncedSearchQuery, activeTab]);
+
+  useEffect(() => {
+    fetchTabTotals();
+  }, [debouncedSearchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
 
   const fetchTours = () => {
     const params = new URLSearchParams({
       page: currentPage.toString(),
       limit: ITEMS_PER_PAGE.toString(),
       filterCompleted: "false",
+      driverStatus: "unassigned",
       ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
     });
+
+    if (activeTab !== "ugovorene") {
+      params.set("tourType", activeTab.toUpperCase());
+    }
 
     if (!initialLoadDone) {
       setLoading(true);
@@ -123,8 +139,13 @@ export function ContractedToursList() {
     fetch(`/api/contracted-tours?${params}`)
       .then((res) => res.json())
       .then((data) => {
+        const total = data.pagination?.total || 0;
         setTours(data.tours || []);
-        setTotalItems(data.pagination?.total || 0);
+        setTotalItems(total);
+        setTabTotals((prev) => ({
+          ...prev,
+          [activeTab]: total,
+        }));
         setLoading(false);
         setIsSearching(false);
         setInitialLoadDone(true);
@@ -136,10 +157,43 @@ export function ContractedToursList() {
       });
   };
 
-  const ugovoreneTours = tours.filter((t) => t.driverId === null);
-  const uvozTours = tours.filter((t) => t.tourType === "UVOZ" && t.driverId === null);
-  const izvozTours = tours.filter((t) => t.tourType === "IZVOZ" && t.driverId === null);
-  const medjuturaTours = tours.filter((t) => t.tourType === "MEDJUTURA" && t.driverId === null);
+  const fetchTabTotals = () => {
+    const tabConfigs = [
+      { key: "ugovorene" },
+      { key: "uvoz", tourType: "UVOZ" },
+      { key: "izvoz", tourType: "IZVOZ" },
+      { key: "medjutura", tourType: "MEDJUTURA" },
+    ];
+
+    Promise.all(
+      tabConfigs.map((tab) => {
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "1",
+          filterCompleted: "false",
+          driverStatus: "unassigned",
+          ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
+        });
+
+        if (tab.tourType) {
+          params.set("tourType", tab.tourType);
+        }
+
+        return fetch(`/api/contracted-tours?${params}`)
+          .then((res) => res.json())
+          .then((data) => ({ key: tab.key, total: data.pagination?.total || 0 }))
+          .catch(() => ({ key: tab.key, total: 0 }));
+      })
+    ).then((results) => {
+      setTabTotals((prev) => {
+        const next = { ...prev };
+        results.forEach((result) => {
+          next[result.key] = result.total;
+        });
+        return next;
+      });
+    });
+  };
 
   if (loading) {
     return <ContractedToursLoading />;
@@ -175,23 +229,23 @@ export function ContractedToursList() {
         <div className="px-8 pt-4">
           <TabsList>
             <TabsTrigger value="ugovorene">
-              Sve ({ugovoreneTours.length})
+              Sve ({tabTotals.ugovorene || 0})
             </TabsTrigger>
             <TabsTrigger value="uvoz">
-              Uvoz ({uvozTours.length})
+              Uvoz ({tabTotals.uvoz || 0})
             </TabsTrigger>
             <TabsTrigger value="izvoz">
-              Izvoz ({izvozTours.length})
+              Izvoz ({tabTotals.izvoz || 0})
             </TabsTrigger>
             <TabsTrigger value="medjutura">
-              Međ. ({medjuturaTours.length})
+              Međ. ({tabTotals.medjutura || 0})
             </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="ugovorene" className="mt-0">
           <TourTable
-            tours={ugovoreneTours}
+            tours={tours}
             onEdit={setEditTour}
             onDelete={setDeleteTour}
             onActivate={setActivateTour}
@@ -205,7 +259,7 @@ export function ContractedToursList() {
 
         <TabsContent value="uvoz" className="mt-0">
           <TourTable
-            tours={uvozTours}
+            tours={tours}
             onEdit={setEditTour}
             onDelete={setDeleteTour}
             onActivate={setActivateTour}
@@ -219,7 +273,7 @@ export function ContractedToursList() {
 
         <TabsContent value="izvoz" className="mt-0">
           <TourTable
-            tours={izvozTours}
+            tours={tours}
             onEdit={setEditTour}
             onDelete={setDeleteTour}
             onActivate={setActivateTour}
@@ -233,7 +287,7 @@ export function ContractedToursList() {
 
         <TabsContent value="medjutura" className="mt-0">
           <TourTable
-            tours={medjuturaTours}
+            tours={tours}
             onEdit={setEditTour}
             onDelete={setDeleteTour}
             onActivate={setActivateTour}

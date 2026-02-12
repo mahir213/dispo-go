@@ -74,7 +74,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "40");
+    const limit = parseInt(searchParams.get("limit") || "50");
     const search = searchParams.get("search") || "";
     const skip = (page - 1) * limit;
 
@@ -104,6 +104,13 @@ export async function GET(request: Request) {
           },
           select: {
             id: true,
+            tourType: true,
+            unloadingStops: {
+              orderBy: {
+                unloadingDate: "desc",
+              },
+              take: 1,
+            },
           },
         },
         trailerTours: {
@@ -122,13 +129,39 @@ export async function GET(request: Request) {
       take: limit,
     });
 
-    // Add isAvailable flag
-    const vehiclesWithAvailability = vehicles.map((vehicle) => ({
-      ...vehicle,
-      isAvailable: vehicle.truckTours.length === 0 && vehicle.trailerTours.length === 0,
-      truckTours: undefined,
-      trailerTours: undefined,
-    }));
+    // Add isAvailable flag and calculate availability date for import tours
+    const vehiclesWithAvailability = vehicles.map((vehicle) => {
+      // Kamion je slobodan samo ako nema nijednu turu (uvoz, izvoz, medjutura)
+      const isAvailable = vehicle.truckTours.length === 0 && vehicle.trailerTours.length === 0;
+
+      // Ako ima dodijeljenu samo UVOZ turu, prikazujemo "slobodan za..."
+      let availableDate: string | null = null;
+      let onlyUvoz = false;
+      if (vehicle.vehicleType === "KAMION" && vehicle.truckTours.length > 0) {
+        // Provjeri da li su sve ture UVOZ
+        onlyUvoz = vehicle.truckTours.every(tour => tour.tourType === "UVOZ");
+        if (onlyUvoz) {
+          const lastUnloadingDates = vehicle.truckTours
+            .map(tour => tour.unloadingStops[0]?.unloadingDate)
+            .filter((date): date is Date => date !== null && date !== undefined);
+          if (lastUnloadingDates.length > 0) {
+            const latestDate = lastUnloadingDates.reduce((latest, current) =>
+              current > latest ? current : latest
+            );
+            availableDate = latestDate.toISOString();
+          }
+        }
+      }
+
+      return {
+        ...vehicle,
+        isAvailable,
+        availableDate: onlyUvoz ? availableDate : null,
+        truckTours: undefined,
+        trailerTours: undefined,
+        tourType: onlyUvoz && vehicle.truckTours.length > 0 ? "UVOZ" : undefined,
+      };
+    });
 
     return NextResponse.json({
       vehicles: vehiclesWithAvailability,
